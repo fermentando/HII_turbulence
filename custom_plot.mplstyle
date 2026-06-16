@@ -1,0 +1,37 @@
+axes.linewidth: 1.5
+axes.labelsize: 20       # Increased axis label font size
+axes.titlesize: 22
+axes.grid: True
+grid.linestyle: -- 
+grid.linewidth: 0.5
+grid.alpha: 0.7
+
+xtick.labelsize: 18      # Increased tick label size
+ytick.labelsize: 18
+xtick.direction: in
+ytick.direction: in
+xtick.top: True
+ytick.right: True
+xtick.minor.visible: True
+ytick.minor.visible: True
+
+xtick.major.width: 1.5
+ytick.major.width: 1.5
+xtick.minor.width: 0.8   # Thinner minor ticks
+ytick.minor.width: 0.8
+xtick.major.size: 7
+ytick.major.size: 7
+xtick.minor.size: 4
+ytick.minor.size: 4
+
+legend.fontsize: 16
+
+lines.linewidth: 3
+lines.markersize: 6
+
+text.usetex: True
+font.family: serif
+font.serif: Computer Modern
+mathtext.fontset: cm
+
+axes.prop_cycle: cycler(color=["#4C72B0", "#55A868", "#C44E52", "#8172B2", "#CCB974", "#64B5CD"])

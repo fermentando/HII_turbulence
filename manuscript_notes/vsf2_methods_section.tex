@@ -1,0 +1,134 @@
+\subsection{Second-order velocity structure functions and segmented power-law fits}
+\label{sec:vsf2-methods}
+
+We quantify the spatial scaling of the ionized-gas velocity field using the
+second-order velocity structure function,
+\begin{equation}
+    S_2(\ell)
+    =
+    \left\langle
+    \left| v(\mathbf{r}+\boldsymbol{\ell}) - v(\mathbf{r}) \right|^2
+    \right\rangle ,
+    \label{eq:vsf2}
+\end{equation}
+where $v(\mathbf{r})$ is the line-of-sight velocity at position
+$\mathbf{r}$, $\ell = |\boldsymbol{\ell}|$ is the projected physical
+separation, and the average is taken over all pairs of spaxels whose
+separations fall in the same logarithmic radial bin. We compute $S_2$ for each
+HII region and for each available emission-line tracer, using only spaxels that
+pass the adopted signal-to-noise and spatial-selection criteria.
+
+For each radial bin $j$, the measured structure function is
+\begin{equation}
+    S_{2,j}
+    =
+    \frac{1}{N_j}
+    \sum_{i \in j}
+    \left| \Delta v_i \right|^2 ,
+    \label{eq:vsf2-binned}
+\end{equation}
+where $N_j$ is the number of velocity pairs in bin $j$ and
+$\Delta v_i$ is the velocity difference for pair $i$. Because the pair values
+are not statistically independent, we estimate the uncertainty in each radial
+bin using a bootstrap over spaxels rather than over individual pairs. For each
+bootstrap realization, we resample the input spaxels with replacement and
+recompute $S_{2,j}$ in every radial bin. The adopted uncertainty is the
+standard deviation of the bootstrap distribution,
+\begin{equation}
+    \sigma_{\mathrm{boot},j}
+    =
+    \mathrm{std}
+    \left[
+    S_{2,j}^{(b)}
+    \right]_{b=1}^{N_{\mathrm{boot}}},
+    \label{eq:vsf2-bootstrap}
+\end{equation}
+where $S_{2,j}^{(b)}$ is the value of the structure function in bin $j$ for
+bootstrap realization $b$. This uncertainty captures both sampling variance
+and the covariance introduced by reusing the same spaxels in many velocity
+pairs.
+
+The VSF scaling is fit in logarithmic space. We define
+\begin{equation}
+    x_j = \log_{10} \ell_j,
+    \qquad
+    y_j = \log_{10} S_{2,j},
+    \qquad
+    \sigma_{y,j}
+    =
+    \frac{\sigma_{\mathrm{boot},j}}{S_{2,j}\ln 10}.
+    \label{eq:log-vsf}
+\end{equation}
+Only bins with finite positive $S_{2,j}$, finite positive uncertainty, and
+sufficient pair counts are included in the fit.
+
+To allow for possible turnover scales or changes in turbulent scaling, we fit
+continuous segmented power laws. For a model with $m$ line segments and
+$m-1$ breakpoints, the log-space model can be written as
+\begin{equation}
+    y(x)
+    =
+    a
+    +
+    b_1 x
+    +
+    \sum_{k=1}^{m-1}
+    c_k \, \max(0, x-\tau_k),
+    \label{eq:segmented-model}
+\end{equation}
+where $\tau_k$ are the breakpoint locations in $\log_{10}\ell$. This
+parameterization enforces continuity at each breakpoint. The slope in the first
+segment is $b_1$, while the slope after the $k$th breakpoint is
+$b_1 + \sum_{q=1}^{k} c_q$.
+
+For each VSF, we fit candidate models with one, two, and three line segments.
+Breakpoints are searched over the observed radial bins, requiring a minimum
+number of data points in every segment. For a fixed set of breakpoint
+locations, the model is linear in the coefficients and is solved by weighted
+least squares. The goodness of fit is
+\begin{equation}
+    \chi^2
+    =
+    \sum_j
+    \left[
+    \frac{y_j - y(x_j)}{\sigma_{y,j}}
+    \right]^2 .
+    \label{eq:chi2-vsf}
+\end{equation}
+
+We select the preferred number of segments using the Bayesian Information
+Criterion (BIC),
+\begin{equation}
+    \mathrm{BIC}
+    =
+    \chi^2 + k \ln n,
+    \label{eq:bic}
+\end{equation}
+where $n$ is the number of fitted radial bins and $k$ is the number of model
+parameters. For a continuous segmented model with $m$ segments, we use
+$k=2m$: one intercept, $m$ slope-equivalent parameters, and $m-1$ breakpoint
+locations. Thus, the one-, two-, and three-segment models have
+$k=2$, $4$, and $6$, respectively.
+
+The model with the lowest BIC is favored, but an additional breakpoint is
+accepted only when the BIC improvement over the best simpler model is
+substantial. We define
+\begin{equation}
+    \Delta \mathrm{BIC}
+    =
+    \mathrm{BIC}_{\mathrm{simpler}}
+    -
+    \mathrm{BIC}_{\mathrm{complex}},
+    \label{eq:delta-bic}
+\end{equation}
+and require $\Delta \mathrm{BIC} \geq 10$ for the more complex model to be
+adopted. This threshold corresponds to strong evidence for the additional
+breakpoint and guards against over-interpreting small improvements in
+$\chi^2$.
+
+For each accepted fit, we report the segment slopes, breakpoint locations, and
+the BIC values for all tested models. Diagnostic plots show the measured
+$S_2(\ell)$ values with their uncertainties together with the selected
+segmented power-law model. These plots are used to verify that the formally
+preferred model also provides a physically plausible description of the VSF
+shape across the fitted radial range.

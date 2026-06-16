@@ -1,0 +1,2 @@
+file,status,message,n_points,r0,r0_err,m,m_err,sigma,sigma_err,bnoise,bnoise_err
+VSF_RCW87_SIII_exclude_peak.npz,FAIL,Not enough valid points (0) to drop 1 and fit,,,,,,,,,
