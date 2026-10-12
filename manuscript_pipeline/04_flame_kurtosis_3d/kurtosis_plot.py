@@ -43,8 +43,16 @@ pdf, c2, c4, cnt, dv_centers, kurtosis = compute_pdf_and_statistics(
 # --- 3D Kurtosis Plot ---
 r = 10**log_centers_bins
 dv_centers_plot = 0.5 * (dv_bins[:-1] + dv_bins[1:])
-fig = plt.figure(figsize=(10, 7))
-ax = fig.add_subplot(111, projection='3d')
+fig = plt.figure(figsize=(7, 7))
+
+gs = fig.add_gridspec(
+    2, 1,
+    height_ratios=[0.03, 1.0],
+    hspace=0.18,   # enough room for y/z labels
+)
+
+cax = fig.add_subplot(gs[0])
+ax = fig.add_subplot(gs[1], projection="3d")
 cmap = cm.viridis
 norm = plt.Normalize(3, 6)
 x_min, x_max = -10, 10
@@ -59,9 +67,10 @@ for i in range(len(r)):
     )
 
 # Improved axis labels and plot presentation
-ax.set_xlabel(r"$(\Delta v)^2$ (km/s)$^2$", fontsize=14, labelpad=10)
+ax.set_xlabel(r"$(\Delta v)$ (km/s)", fontsize=14, labelpad=10)
 ax.set_ylabel(r"$\log r$ (pc)", fontsize=14, labelpad=10)
 ax.set_zlabel(r"$\mathcal{P}(\Delta v^2)$", fontsize=14, labelpad=10)
+ax.set_zlim(1e-3, 1)
 ax.set_xlim(x_min, x_max)
 ax.set_ylim(np.log10(r[0]), np.log10(r[-1]))
 ax.view_init(elev=25, azim=45)
@@ -80,9 +89,8 @@ for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
 # Colorbar
 mappable = cm.ScalarMappable(cmap=cmap, norm=norm)
 mappable.set_array([])
-cax = fig.add_axes([0.25, 0.92, 0.5, 0.02])
 cbar = plt.colorbar(mappable, cax=cax, orientation='horizontal')
-cbar.set_label(r"Kurtosis", labelpad=5, fontsize=13)
+cbar.set_label(r"Kurtosis", labelpad=3, fontsize=13)
 cbar.ax.tick_params(labelsize=11)
 # Annotate colorbar: low end = Gaussian, high end = Exponential
 cbar.ax.text(3, 1.2, "Gaussian", ha='center', va='bottom', fontsize=11, color='k', transform=cbar.ax.get_xaxis_transform())
@@ -91,6 +99,5 @@ plt.tight_layout()
 figure_dir = Path('Figures/manuscript/04_flame_kurtosis_3d')
 figure_dir.mkdir(parents=True, exist_ok=True)
 figure_out = figure_dir / 'Flame_NII_refactored_3D.png'
-plt.savefig(figure_out, dpi=200)
-plt.show()
+plt.savefig(figure_out, dpi=200, bbox_inches='tight')
 print(f"✓ 3D kurtosis plot created and saved as {figure_out}")

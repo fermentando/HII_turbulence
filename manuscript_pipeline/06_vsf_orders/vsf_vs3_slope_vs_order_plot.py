@@ -1,4 +1,7 @@
 import pandas as pd
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -23,7 +26,7 @@ regions = sorted(df['region'].unique())
 if 'slope_err' not in df.columns:
     df['slope_err'] = np.nan
 
-plt.figure(figsize=(10, 6))
+plt.figure(figsize=(6, 4))
 for region in regions:
     region_df = df[df['region'] == region]
     region_map = {
@@ -63,15 +66,15 @@ for region in regions:
         yerr=yerrs,
         fmt='-o',
         capsize=3,
-        alpha=0.8,
+        alpha=0.6,
         elinewidth=1.0,
         capthick=1.0,
         label=region.replace('LVM_', '').replace('.fits', '').replace('_', ' ')
     )
-plt.plot(ps, sl94/k41, linestyle = '--', color = 'k', alpha = 0.6, label = "She & Levesque '94")
+plt.plot(ps, sl94/k41, linestyle = '--', color = 'k', alpha = 0.6, label = r"She \& Levesque '94")
 plt.plot(ps, bol02/k41, linestyle = ':', color = 'k', alpha = 0.6, label = "Boldyrev '02")
 
-plt.xlabel('p', fontsize=13)
+plt.xlabel('$p$ (for $S_p$)', fontsize=13)
 plt.ylabel(r'$\tilde{\zeta} / \zeta_{K41}$', fontsize=13)
 plt.grid(True, ls='--', alpha=0.5)
 plt.legend(fontsize=9, loc='best', ncol=2)
@@ -81,5 +84,5 @@ out_dir = 'Figures/manuscript/07_final_slope_vs_order'
 os.makedirs(out_dir, exist_ok=True)
 out_plot = os.path.join(out_dir, 'vsf_vs3_slope_vs_order_by_region.png')
 plt.savefig(out_plot, dpi=150)
-plt.show()
+plt.close()
 print(f"✓ Slope vs order plot saved as {out_plot}")

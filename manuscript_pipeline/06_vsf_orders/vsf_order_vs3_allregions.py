@@ -22,7 +22,7 @@ fits_files = sorted([
     if f.startswith('LVM_') and f.endswith('.fits')
     and 'Orion' not in f and 'Rosette' not in f
 ])
-
+#fits_files = ['LVM_Flame_nebula.fits', 'LVM_Gum31.fits', 'LVM_RCW52.fits']
 # Keep previous distance table for consistency.
 distances = {
     'LVM_Flame_nebula.fits': 400,
@@ -312,7 +312,7 @@ def main():
     n_regions = len(fits_files)
     ncols = 3
     nrows = int(np.ceil(n_regions / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows), squeeze=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 4 * nrows), squeeze=False)
 
     slope_results = []
 
@@ -421,7 +421,7 @@ def main():
                         yfit,
                         '--',
                         color=colors[i],
-                        label=f'Order {p} fit: slope={slope:.2f}±{slope_err:.2f}'
+                        #label=f'Order {p} fit: slope={slope:.2f}±{slope_err:.2f}'
                     )
                     slope_results.append({
                         'region': fitsfile,
@@ -432,11 +432,12 @@ def main():
 
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_xlabel(r"VSF$_3$ (km$^3$ s$^{-3}$)", fontsize=12)
-        ax.set_ylabel(r"VSF$_p$ (km$^p$ s$^{-p}$)", fontsize=12)
-        ax.set_title(f"{fitsfile}", fontsize=13)
+        ax.set_xlabel(r"$S_3$ (km$^3$ s$^{-3}$)", fontsize=13)
+        ax.set_title(f"{fitsfile.split('.')[0].split('LVM_')[-1].replace('_', ' ')}", fontsize=12)
         ax.grid(True, which='both', ls='--', alpha=0.5)
-        ax.legend(fontsize=8)
+        if idx == 0:
+            ax.set_ylabel(r"$S_p$ (km$^p$ s$^{-p}$)", fontsize=13)
+            ax.legend(fontsize=8)
 
     # Hide unused subplots.
     for idx in range(n_regions, nrows * ncols):
@@ -456,6 +457,7 @@ def main():
 
     plt.tight_layout()
     out_dir = 'Figures/manuscript/06_vsf_orders'
+    #out_dir = "example_vsf_vs3"
     os.makedirs(out_dir, exist_ok=True)
     out_plot = os.path.join(out_dir, 'VSF_orders1to5_vs_order3_allregions.png')
     plt.savefig(out_plot, dpi=150)

@@ -207,8 +207,8 @@ def make_plot(points, out_path):
         y_phase[phase].append(p["y"])
 
     ax_main.set_xscale("log")
-    ax_main.set_xlabel("Breakpoint Scale (pc)")
-    ax_main.set_ylabel(r"Segment Slope Closest to $1.66$")
+    ax_main.set_xlabel("$r_\mathrm{turnover}$ (pc)")
+    ax_main.set_ylabel(r"$ m $ (from $S_2 \sim \ell^m$)")
     ax_main.axhline(TARGET_SLOPE, color="0.3", linestyle="--", linewidth=1.1, alpha=0.7)
     ax_main.grid(True, alpha=0.3)
     ax_main.legend(loc="best")

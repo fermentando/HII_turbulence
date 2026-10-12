@@ -2,3 +2,7 @@
 *.npz
 *.png
 *.pdf
+__pycache__/
+*.pyc
+.DS_Store
+Figures/manuscript/04_kurtosis_3d_all_regions/

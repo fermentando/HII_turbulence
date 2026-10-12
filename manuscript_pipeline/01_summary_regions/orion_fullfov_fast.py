@@ -14,17 +14,30 @@ import seaborn as sns
 from astropy.io import fits
 from matplotlib.lines import Line2D
 from matplotlib.ticker import LogLocator
-from scipy.interpolate import griddata
 
 warnings.filterwarnings('ignore')
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_DIR = Path(__file__).resolve().parents[1] / "00_core"
 sys.path.insert(0, str(CORE_DIR))
 from vsf_module import VSF2D
 
-plt.style.use('./custom_plot.mplstyle')
+style_path = REPO_ROOT / "custom_plot.mplstyle"
+if style_path.exists():
+    plt.style.use(str(style_path))
 
-filename = sys.argv[1] if len(sys.argv) > 1 else 'LVM_RCW52.fits'
+
+def resolve_input_path(path_arg: str):
+    """Resolve FITS paths from either repo root or this script directory."""
+    path = Path(path_arg)
+    if path.exists():
+        return str(path)
+    root_path = REPO_ROOT / path_arg
+    if root_path.exists():
+        return str(root_path)
+    return str(path)
+
+filename = resolve_input_path(sys.argv[1] if len(sys.argv) > 1 else 'LVM_RCW52.fits')
 base_name = os.path.splitext(os.path.basename(filename))[0]
 object_name = base_name.replace('LVM_', '')
 
@@ -40,6 +53,88 @@ table_data = hdul[1].data
 candidate_lines = ['nii', 'sii', 'siii']
 line_names_map = {'nii': 'NII', 'sii': 'SII', 'siii': 'SIII'}
 line_colors = {'nii': '#2C7FB8', 'sii': '#D95F0E', 'siii': '#238B45'}
+NPZ_DIR = REPO_ROOT / "NPZ"
+NPZ_DIR.mkdir(exist_ok=True)
+
+
+def total_vsf_cache_paths(object_name, line_name):
+    """Prefer the fast cache, but allow reuse of the older full-FOV cache."""
+    return [
+        NPZ_DIR / f"VSF_{object_name}_{line_name}_total_fullfov_fast.npz",
+        NPZ_DIR / f"VSF_{object_name}_{line_name}_total_fullfov.npz",
+    ]
+
+
+def load_total_vsf_cache(object_name, line_name):
+    for npz_name in total_vsf_cache_paths(object_name, line_name):
+        if not npz_name.exists():
+            continue
+
+        try:
+            with np.load(npz_name) as data:
+                missing = {"vsf", "vsf_err", "log_centers", "counts"} - set(data.files)
+                if missing:
+                    raise KeyError(f"missing keys: {sorted(missing)}")
+
+                vsf = np.asarray(data["vsf"], dtype=float)
+                vsf_err = np.asarray(data["vsf_err"], dtype=float)
+                log_centers = np.asarray(data["log_centers"], dtype=float)
+                counts = np.asarray(data["counts"], dtype=float)
+
+            valid = (
+                np.isfinite(vsf)
+                & np.isfinite(vsf_err)
+                & np.isfinite(log_centers)
+                & np.isfinite(counts)
+                & (vsf > 0)
+                & (counts > 0)
+            )
+            if not np.any(valid):
+                raise ValueError("no valid VSF bins")
+
+            print(f"  Loading cached {line_name} full-FOV VSF: {npz_name}")
+            return {
+                'r': 10**log_centers[valid],
+                'vsf': vsf[valid],
+                'vsf_err': vsf_err[valid],
+                'counts': counts[valid],
+            }
+        except Exception as exc:
+            print(f"  Cache not usable for {line_name}: {npz_name} ({exc}); trying next option")
+
+    return None
+
+
+def save_total_vsf_cache(object_name, line_name, r, vsf, vsf_err, counts):
+    npz_name = total_vsf_cache_paths(object_name, line_name)[0]
+    np.savez(
+        npz_name,
+        vsf=vsf,
+        vsf_err=vsf_err,
+        log_centers=np.log10(r),
+        counts=counts,
+    )
+    print(f"    Saved {npz_name}")
+
+
+def tighten_sky_axes(ax, ra_values, dec_values, pad_fraction=0.01):
+    """Set tight RA/Dec limits while preserving local sky aspect."""
+    ra_values = np.asarray(ra_values, dtype=float)
+    dec_values = np.asarray(dec_values, dtype=float)
+    valid = np.isfinite(ra_values) & np.isfinite(dec_values)
+    if not np.any(valid):
+        return
+
+    ra_min, ra_max = np.nanmin(ra_values[valid]), np.nanmax(ra_values[valid])
+    dec_min, dec_max = np.nanmin(dec_values[valid]), np.nanmax(dec_values[valid])
+    ra_pad = max((ra_max - ra_min) * pad_fraction, 1e-6)
+    dec_pad = max((dec_max - dec_min) * pad_fraction, 1e-6)
+
+    ax.set_xlim(ra_max + ra_pad, ra_min - ra_pad)
+    ax.set_ylim(dec_min - dec_pad, dec_max + dec_pad)
+    dec_mid = 0.5 * (dec_min + dec_max)
+    ax.set_aspect(1.0 / np.cos(np.deg2rad(dec_mid)), adjustable="box")
+
 
 available_lines = [line for line in candidate_lines if f'vel_{line}' in table_data.names]
 line_names = [line_names_map[line] for line in available_lines]
@@ -63,11 +158,6 @@ for line in available_lines:
     vel = table_data[vel_col][filter_data]
     vel_err = table_data[vel_err_col][filter_data]
 
-    peak_idx = np.nanargmax(flux)
-    peak_ra = ra[peak_idx]
-    peak_dec = dec[peak_idx]
-    peak_flux = flux[peak_idx]
-
     line_data[name] = {
         'line_key': line,
         'ra': ra,
@@ -75,13 +165,9 @@ for line in available_lines:
         'flux': flux,
         'vel': vel,
         'vel_err': vel_err,
-        'peak_ra': peak_ra,
-        'peak_dec': peak_dec,
-        'peak_flux': peak_flux,
     }
 
     print(f"  {name}: {len(ra):,} points")
-    print(f"    Peak flux @ RA={peak_ra:.6f}, Dec={peak_dec:.6f}, flux={peak_flux:.3e}")
 
 reference_name = 'NII' if 'NII' in line_data else line_names[0]
 ra_ref = line_data[reference_name]['ra']
@@ -106,11 +192,26 @@ print('Computing full-FOV VSFs for all available lines...')
 all_total = {}
 for name in line_names:
     d = line_data[name]
+    cached = load_total_vsf_cache(object_name, name)
+    if cached is not None:
+        all_total[name] = cached
+        continue
+
     print(f"  Computing {name} full-FOV VSF...")
 
     vsf_total, vsf_total_err, log_centers_total, counts_total = VSF2D(
         d['ra'], d['dec'], d['vel'], dist=1500, vel_err=d['vel_err']
-    ).generate_vsf_2d(order=1, outname='/tmp/ignore_orion_fullfov', n_jobs=1, min_pairs=3, bin_resolution=30)
+    ).generate_vsf_2d(
+        order=1, outname='/tmp/ignore_orion_fullfov', n_jobs=1, min_pairs=3, bin_resolution=30,
+        error_mode='block_jackknife', binning='shell',
+        # Serial (not threaded): this machine's free memory has been swinging
+        # wildly (32MB-2GB free) under other running apps, and the threaded
+        # jackknife's concurrent ~2-3GB chunks were triggering unpredictable
+        # swap-thrashing (runs ranging from 4 min to 60+ min with no clear
+        # cause). Serial execution is slower in the best case but immune to
+        # that failure mode -- predictable cost instead of a gamble.
+        jackknife_n_jobs=1,
+    )
 
     valid = np.isfinite(vsf_total) & np.isfinite(vsf_total_err) & (counts_total > 0)
     if not np.any(valid):
@@ -129,15 +230,7 @@ for name in line_names:
         'counts': cnt_total,
     }
 
-    npz_name = f"NPZ/VSF_{object_name}_{name}_total_fullfov_fast.npz"
-    np.savez(
-        npz_name,
-        vsf=y_total,
-        vsf_err=yerr_total,
-        log_centers=np.log10(r_total),
-        counts=cnt_total,
-    )
-    print(f"    Saved {npz_name}")
+    save_total_vsf_cache(object_name, name, r_total, y_total, yerr_total, cnt_total)
 
 print()
 
@@ -160,20 +253,7 @@ ax1.set_xlabel('RA (deg)')
 ax1.set_ylabel('Dec (deg)')
 ax1.grid(True, alpha=0.3)
 ax1.set_title(f'{reference_name} velocity field')
-
-peak_ra = line_data[reference_name]['peak_ra']
-peak_dec = line_data[reference_name]['peak_dec']
-ax1.scatter(peak_ra, peak_dec, marker='*', s=260, c='yellow', edgecolor='black', linewidth=1.2, zorder=10)
-ax1.text(peak_ra, peak_dec, ' peak', color='yellow', fontsize=11, fontweight='bold', zorder=11)
-
-ref_flux = line_data[reference_name]['flux']
-contour_levels = np.percentile(ref_flux, [70, 80, 90, 97])
-grid_ra = np.linspace(ra_ref.min(), ra_ref.max(), 200)
-grid_dec = np.linspace(dec_ref.min(), dec_ref.max(), 200)
-ra_grid, dec_grid = np.meshgrid(grid_ra, grid_dec)
-grid_flux = griddata((ra_ref, dec_ref), ref_flux, (ra_grid, dec_grid), method='linear')
-contours = ax1.contour(ra_grid, dec_grid, grid_flux, levels=contour_levels, colors='orange', linewidths=2.5, alpha=0.95)
-ax1.clabel(contours, inline=True, fmt='%.1e')
+tighten_sky_axes(ax1, ra_ref, dec_ref)
 
 cbar = fig.colorbar(sc, ax=ax1, fraction=0.046, pad=0.04)
 cbar.set_label(r'$v_\mathrm{LOS}$ [km/s]')
@@ -245,9 +325,9 @@ for name in line_names:
 ax3.legend(handles=[style_handle] + color_handles, fontsize=8, loc='best', frameon=True)
 
 plt.tight_layout()
-figure_dir = 'Figures/manuscript/01_summary_regions'
+figure_dir = REPO_ROOT / 'Figures/manuscript/01_summary_regions'
 os.makedirs(figure_dir, exist_ok=True)
-figure_out = os.path.join(figure_dir, f'{base_name}_summary_fullfov.png')
+figure_out = os.path.join(str(figure_dir), f'{base_name}_summary_fullfov.png')
 plt.savefig(figure_out, dpi=150, bbox_inches='tight')
 
 hdul.close()

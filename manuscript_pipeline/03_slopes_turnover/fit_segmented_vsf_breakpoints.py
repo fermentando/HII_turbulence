@@ -14,18 +14,36 @@ import itertools
 import os
 import re
 from dataclasses import dataclass
+import sys
+from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.io import fits
 from scipy.stats import kstest, ks_2samp
 
 
 LINE_ORDER = ["NII", "SII", "SIII"]
 LINE_COLORS = {"NII": "tab:blue", "SII": "tab:red", "SIII": "tab:green"}
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
+CORE_DIR = Path(__file__).resolve().parents[1] / "00_core"
+sys.path.insert(0, str(CORE_DIR))
+
+style_path = REPO_ROOT / "custom_plot.mplstyle"
+if style_path.exists():
+    plt.style.use(str(style_path))
+
+MIN_SEPARATION_ARCSEC = 37.0
+SPECIAL_DISTANCES_PC = {
+    "Flame_nebula": 400.0,
+    "Orion": 400.0,
+    "Rosette_nebula": 1500.0,
+}
 
 @dataclass
 class SegmentedFit:
@@ -68,6 +86,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-points-per-segment", type=int, default=5)
     parser.add_argument("--min-delta-bic", type=float, default=10.0)
     parser.add_argument("--min-counts", type=float, default=1.0)
+    parser.add_argument(
+        "--min-separation-arcsec",
+        type=float,
+        default=MIN_SEPARATION_ARCSEC,
+        help="Drop VSF bins below this angular separation before fitting.",
+    )
     return parser.parse_args()
 
 
@@ -82,7 +106,42 @@ def parse_object_line_and_dataset(path: str) -> tuple[str, str, str] | tuple[Non
     return match.group(1), match.group(2).upper(), match.group(3)
 
 
-def load_curve(path: str, min_counts: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def arcsec_to_pc(angle_arcsec: float, distance_pc: float) -> float:
+    return distance_pc * np.deg2rad(angle_arcsec / 3600.0)
+
+
+def get_heliocentric_distance(object_name: str) -> float:
+    if object_name in SPECIAL_DISTANCES_PC:
+        return SPECIAL_DISTANCES_PC[object_name]
+
+    lookup_name = {
+        "Flame_nebula": "Flame",
+        "Rosette_nebula": "Rosette",
+    }.get(object_name, object_name)
+
+    table_path = REPO_ROOT / "extra_HII_regions.fits"
+    with fits.open(table_path) as hdul:
+        dist_data = hdul[1].data
+        try:
+            index = list(dist_data["HII Region"]).index(lookup_name)
+        except ValueError as exc:
+            raise ValueError(f"Distance not found for {object_name}") from exc
+        return float(dist_data["Heliocentric_distance"][index]) * 1e3
+
+
+def npz_min_separation_pc(path: str) -> float | None:
+    with np.load(path) as data:
+        if "min_separation_pc" not in data.files:
+            return None
+        value = float(np.asarray(data["min_separation_pc"]).item())
+        return value if np.isfinite(value) and value > 0 else None
+
+
+def load_curve(
+    path: str,
+    min_counts: float,
+    min_log_r: float | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     data = np.load(path)
     vsf = np.asarray(data["vsf"], dtype=float)
     vsf_err = np.asarray(data["vsf_err"], dtype=float)
@@ -95,6 +154,8 @@ def load_curve(path: str, min_counts: float) -> tuple[np.ndarray, np.ndarray, np
 
     valid = np.isfinite(log_r) & np.isfinite(y) & np.isfinite(y_err)
     valid &= (vsf > 0) & (vsf_err > 0) & (counts >= min_counts)
+    if min_log_r is not None:
+        valid &= log_r >= min_log_r
     return log_r[valid], y[valid], y_err[valid], counts[valid]
 
 
@@ -234,6 +295,11 @@ def select_fit(fits: dict[int, SegmentedFit], min_delta_bic: float) -> Segmented
 def evaluate_model(fit: SegmentedFit, x: np.ndarray) -> np.ndarray:
     return design_matrix(x, fit.break_log_r) @ fit.params
 
+def evaluate_model_uncertainty(fit: SegmentedFit, x: np.ndarray) -> np.ndarray:
+    X = design_matrix(x, fit.break_log_r)
+    var = np.einsum("ij,jk,ik->i", X, fit.covariance, X)
+    return np.sqrt(np.clip(var, 0.0, np.inf))
+
 
 def dense_segment_line(fit: SegmentedFit, x: np.ndarray, segment_index: int) -> tuple[np.ndarray, np.ndarray]:
     slc = segment_slices(len(x), fit.break_indices)[segment_index]
@@ -247,12 +313,23 @@ def padded(values: tuple[float, ...], length: int) -> list[float]:
     return [float(values[i]) if i < len(values) else np.nan for i in range(length)]
 
 
-def make_summary_row(path: str, obj: str, line: str, dataset: str, fits: dict[int, SegmentedFit], selected: SegmentedFit) -> dict[str, object]:
+def make_summary_row(
+    path: str,
+    obj: str,
+    line: str,
+    dataset: str,
+    fits: dict[int, SegmentedFit],
+    selected: SegmentedFit,
+    min_separation_pc: float,
+    min_separation_arcsec: float,
+) -> dict[str, object]:
     row: dict[str, object] = {
         "file": path,
         "object": obj,
         "line": line,
         "dataset": dataset,
+        "min_separation_arcsec": min_separation_arcsec,
+        "min_separation_pc": min_separation_pc,
         "n_points": selected.n_points,
         "selected_segments": selected.n_segments,
         "selected_bic": selected.bic,
@@ -282,6 +359,7 @@ def make_summary_row(path: str, obj: str, line: str, dataset: str, fits: dict[in
 
 def plot_all_curves(plot_payloads: list[dict[str, object]], out_fig: str) -> None:
     objects = sorted({str(p["object"]) for p in plot_payloads})
+    objects = ["Flame_nebula", "Rosette_nebula", "RCW79"]
     line_to_col = {line: i for i, line in enumerate(LINE_ORDER)}
     fig, axes = plt.subplots(
         len(objects),
@@ -325,37 +403,55 @@ def plot_all_curves(plot_payloads: list[dict[str, object]], out_fig: str) -> Non
 
             for seg_idx in range(selected.n_segments):
                 xx, yy = dense_segment_line(selected, x, seg_idx)
-                ax.plot(10.0 ** xx, 10.0 ** yy, color="black", lw=2.0)
+                yy_err = 5 * evaluate_model_uncertainty(selected, xx)
+
+                r_fit = 10.0 ** xx
+                vsf_fit = 10.0 ** yy
+                vsf_fit_lo = 10.0 ** (yy - yy_err)
+                vsf_fit_hi = 10.0 ** (yy + yy_err)
+
+                print(obj, line, "yy_err range:", np.nanmin(yy_err), np.nanmax(yy_err))
+                print("relative band:", np.nanmax(10**yy_err - 1))
+
+                ax.plot(r_fit, vsf_fit, color="black", lw=2.0, alpha=0.85, linestyle="--")
+                ax.fill_between(
+                    r_fit,
+                    vsf_fit_lo,
+                    vsf_fit_hi,
+                    color=color,
+                    alpha=0.35,
+                    linewidth=0,
+                )
 
             for break_log in selected.break_log_r:
                 ax.axvline(10.0 ** break_log, color="dimgray", lw=1.2, ls=":")
 
-            bic_text = ", ".join(
-                f"BIC{m}={fits[m].bic:.1f}" for m in sorted(fits)
-            )
+            #bic_text = ", ".join(
+            #    f"BIC{m}={fits[m].bic:.1f}" for m in sorted(fits)
+            #)
             slope_text = ", ".join(f"m{i + 1}={s:.2f}" for i, s in enumerate(selected.slopes))
             ax.text(
                 0.04,
                 0.96,
-                f"{selected.n_segments} seg\n{slope_text}\n{bic_text}",
+                f"{slope_text}",#\n{bic_text}",
                 ha="left",
                 va="top",
                 transform=ax.transAxes,
-                fontsize=7.0,
+                fontsize=10.0,
                 bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.72},
             )
 
             ax.set_xscale("log")
             ax.set_yscale("log")
             ax.grid(True, alpha=0.25)
-            ax.set_title(f"{obj} {line}", fontsize=9)
+           # ax.set_title(f"{obj} {line}", fontsize=9)
             if row_idx == len(objects) - 1:
                 ax.set_xlabel("r [pc]")
             if line_to_col[line] == 0:
                 ax.set_ylabel(r"$S_2$ [(km/s)$^2$]")
 
     fig.tight_layout()
-    os.makedirs(os.path.dirname(out_fig), exist_ok=True)
+    outdir = os.path.dirname(os.path.abspath(out_fig))
     fig.savefig(out_fig, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
@@ -377,7 +473,19 @@ def main() -> None:
             print(f"Skipping unexpected filename: {path}")
             continue
 
-        x, y, y_err, counts = load_curve(path, min_counts=args.min_counts)
+        min_separation_pc = npz_min_separation_pc(path)
+        if min_separation_pc is None:
+            min_separation_pc = arcsec_to_pc(
+                args.min_separation_arcsec,
+                get_heliocentric_distance(obj),
+            )
+        min_log_r = np.log10(min_separation_pc)
+
+        x, y, y_err, counts = load_curve(
+            path,
+            min_counts=args.min_counts,
+            min_log_r=min_log_r,
+        )
         if len(x) < args.min_points_per_segment:
             print(f"Skipping {obj} {line}: only {len(x)} valid points")
             continue
@@ -394,7 +502,18 @@ def main() -> None:
             continue
 
         selected = select_fit(fits, min_delta_bic=args.min_delta_bic)
-        rows.append(make_summary_row(path, obj, line, dataset, fits, selected))
+        rows.append(
+            make_summary_row(
+                path,
+                obj,
+                line,
+                dataset,
+                fits,
+                selected,
+                min_separation_pc,
+                args.min_separation_arcsec,
+            )
+        )
         plot_payloads.append(
             {
                 "object": obj,
@@ -405,12 +524,14 @@ def main() -> None:
                 "counts": counts,
                 "fits": fits,
                 "selected": selected,
+                "min_separation_pc": min_separation_pc,
             }
         )
         print(
             f"{obj:16s} {line:4s}: selected {selected.n_segments} segment(s), "
             f"BIC={selected.bic:.2f}, breaks="
-            f"{[round(10.0 ** b, 3) for b in selected.break_log_r]}"
+            f"{[round(10.0 ** b, 3) for b in selected.break_log_r]}, "
+            f"r_min={min_separation_pc:.4g} pc"
         )
 
     if not rows:

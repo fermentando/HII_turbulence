@@ -33,11 +33,17 @@ NPZ_OUTPUT_DIR = "NPZ"
 VSF_ERROR_MODE = "bootstrap"
 VSF_TEMP_OUTNAME = "/private/tmp/ignore_selected_subregions"
 N_BOOTSTRAP = 100
+MIN_SEPARATION_ARCSEC = 37.0
 MAX_REGIONS = int(sys.argv[1]) if len(sys.argv) > 1 else None
 NII_LOGFLUX_THRESHOLD = 2.8
 NII_FLUX_THRESHOLD = 10 ** NII_LOGFLUX_THRESHOLD
 NII_LOGFLUX_THRESHOLD_HIGH = 3.2
 SPECIAL_CENTER_REGIONS = {"Orion", "RCW52"}
+
+
+def arcsec_to_pc(angle_arcsec, distance_pc):
+    """Convert an angular separation at distance_pc to a physical separation."""
+    return distance_pc * np.deg2rad(angle_arcsec / 3600.0)
 
 
 def get_heliocentric_distance(filename):
@@ -281,6 +287,8 @@ for filename in files_to_process:
     available_lines = get_available_lines(filename)
     distance = get_heliocentric_distance(filename)
     print(f"  Distance: {distance:.1f} pc")
+    min_separation_pc = arcsec_to_pc(MIN_SEPARATION_ARCSEC, distance)
+    print(f"  Minimum separation: {MIN_SEPARATION_ARCSEC:.1f} arcsec = {min_separation_pc:.4f} pc")
 
     row = plot_idx // n_cols
     col = plot_idx % n_cols
@@ -313,6 +321,7 @@ for filename in files_to_process:
                 bin_resolution=20,
                 error_mode=VSF_ERROR_MODE,
                 n_bootstrap=N_BOOTSTRAP,
+                min_separation=min_separation_pc,
             )
             with np.load(VSF_TEMP_OUTNAME + "_order2.npz", allow_pickle=True) as vsf_diagnostics:
                 vsf_std_total = np.asarray(vsf_diagnostics["vsf_std"], dtype=float)
@@ -359,6 +368,8 @@ for filename in files_to_process:
                 n_bootstrap=N_BOOTSTRAP,
                 log_centers=np.log10(r_total),
                 counts=counts_total,
+                min_separation_arcsec=MIN_SEPARATION_ARCSEC,
+                min_separation_pc=min_separation_pc,
             )
             print(f"    Saved {npz_out}")
 

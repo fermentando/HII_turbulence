@@ -1,8 +1,8 @@
-"""Select the connected subregion occupied by each detected HII source.
+"""Select the connected subregion occupied by each ionizing source.
 
 Inputs:
 - LVM_*.fits files (same folder)
-- Figures/bright_sources/nii_bright_source_catalog.csv (rank-1 source positions)
+- ionizing_sources.xlsx (region-name source coordinates)
 
 Outputs:
 - Figures/bright_sources/hii_occupied_subregions.csv
@@ -15,40 +15,143 @@ import csv
 import glob
 import os
 from collections import deque
+from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from matplotlib.path import Path
 
 
-def load_rank1_sources(catalog_path: str):
-    """Load rank-1 source per region from CSV."""
-    if not os.path.exists(catalog_path):
-        raise FileNotFoundError(f"Source catalog not found: {catalog_path}")
+REGION_ALIASES = {
+    "Flame_nebula": "Sh 2-277",
+    "Gum38a": "NGC 3576",
+    "Orion": "Sh 2-281",
+    "Rosette_nebula": "Sh 2-275",
+}
+
+NEBULA_PERCENTILE_LEVELS = (95.0, 90.0, 85.0, 80.0, 75.0, 70.0, 65.0, 60.0, 55.0, 50.0, 45.0, 40.0, 35.0, 30.0)
+
+
+def normalize_region_name(name: str):
+    """Normalize object names for matching LVM filenames to workbook rows."""
+    return "".join(ch.lower() for ch in name if ch.isalnum())
+
+
+def xlsx_column_index(cell_ref: str):
+    """Return zero-based column index from an Excel cell reference."""
+    col = 0
+    for ch in cell_ref:
+        if not ch.isalpha():
+            break
+        col = col * 26 + ord(ch.upper()) - ord("A") + 1
+    return col - 1
+
+
+def load_xlsx_rows(path: str):
+    """Read the first worksheet of a simple XLSX file without extra dependencies."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Ionizing-source workbook not found: {path}")
+
+    ns = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    with ZipFile(path) as zf:
+        shared_strings = []
+        if "xl/sharedStrings.xml" in zf.namelist():
+            root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+            for si in root.findall("m:si", ns):
+                text = "".join(
+                    node.text or ""
+                    for node in si.iter("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}t")
+                )
+                shared_strings.append(text)
+
+        sheet = ET.fromstring(zf.read("xl/worksheets/sheet1.xml"))
+        rows = []
+        for row in sheet.findall(".//m:sheetData/m:row", ns):
+            values = []
+            for cell in row.findall("m:c", ns):
+                idx = xlsx_column_index(cell.attrib["r"])
+                while len(values) <= idx:
+                    values.append("")
+
+                val_node = cell.find("m:v", ns)
+                if val_node is None:
+                    value = ""
+                elif cell.attrib.get("t") == "s":
+                    value = shared_strings[int(val_node.text)]
+                else:
+                    value = val_node.text or ""
+                values[idx] = value.strip() if isinstance(value, str) else value
+            rows.append(values)
+    return rows
+
+
+def parse_angle(value: str):
+    """Parse a decimal degree string from the workbook."""
+    cleaned = str(value).replace("\xa0", "").strip()
+    if not cleaned:
+        return None
+    return float(cleaned)
+
+
+def load_ionizing_sources(workbook_path: str):
+    """Load ionizing-source centers keyed by normalized region name."""
+    rows = load_xlsx_rows(workbook_path)
+    if not rows:
+        return {}
+
+    headers = [str(item).strip().lower() for item in rows[0]]
+    region_idx = headers.index("region")
+    source_idx = headers.index("source")
+    glon_idx = next(i for i, item in enumerate(headers) if "galactic l" in item)
+    glat_idx = next(i for i, item in enumerate(headers) if "galactic b" in item)
+    type_idx = headers.index("type")
 
     out = {}
-    with open(catalog_path, "r", newline="", encoding="utf-8") as fobj:
-        reader = csv.DictReader(fobj)
-        for row in reader:
-            try:
-                rank = int(row.get("rank", "0"))
-            except ValueError:
-                continue
-            if rank != 1:
-                continue
+    for row in rows[1:]:
+        if len(row) <= max(region_idx, source_idx, glon_idx, glat_idx, type_idx):
+            continue
 
-            region = row.get("region", "")
-            if not region:
-                continue
+        region = row[region_idx].strip()
+        if not region:
+            continue
 
-            out[region] = {
-                "peak_ra": float(row["peak_ra_deg"]),
-                "peak_dec": float(row["peak_dec_deg"]),
-                "centroid_ra": float(row["centroid_ra_deg"]),
-                "centroid_dec": float(row["centroid_dec_deg"]),
-            }
+        glon = parse_angle(row[glon_idx])
+        glat = parse_angle(row[glat_idx])
+        if glon is None or glat is None:
+            continue
+
+        coord = SkyCoord(l=glon * u.deg, b=glat * u.deg, frame="galactic").icrs
+        out[normalize_region_name(region)] = {
+            "catalog_region": region,
+            "source": row[source_idx].strip(),
+            "source_type": row[type_idx].strip(),
+            "gal_l": float(glon),
+            "gal_b": float(glat),
+            "ra": float(coord.ra.deg),
+            "dec": float(coord.dec.deg),
+        }
     return out
+
+
+def get_region_source(region: str, ionizing_sources: dict):
+    """Return the ionizing-source center for an LVM region name."""
+    lookup = REGION_ALIASES.get(region, region)
+    candidates = [lookup]
+    if lookup.startswith("Sh2-"):
+        candidates.append(lookup.replace("Sh2-", "Sh 2-"))
+    if lookup.startswith("Sh 2-"):
+        candidates.append(lookup.replace("Sh 2-", "Sh2-"))
+
+    for candidate in candidates:
+        source = ionizing_sources.get(normalize_region_name(candidate))
+        if source is not None:
+            return source
+
+    return None
 
 
 def load_valid_points(fits_path: str, snr_min: float = 5.0):
@@ -120,10 +223,10 @@ def select_substructure_by_contours(
     dec_centers: np.ndarray,
     src_ra: float,
     src_dec: float,
-    percentile_levels=(99.5, 99.0, 98.5, 98.0, 97.0, 95.0, 93.0, 90.0, 85.0, 80.0, 75.0, 70.0, 65.0, 60.0),
-    min_cells: int = 3,
+    percentile_levels=NEBULA_PERCENTILE_LEVELS,
+    min_cells: int = 25,
 ):
-    """Pick contour-delimited substructure containing source centroid.
+    """Pick a broad contour-delimited nebula containing the ionizing source.
 
     Returns a dict with selected cells and contour metadata, or None if no contour works.
     """
@@ -138,6 +241,7 @@ def select_substructure_by_contours(
     contour_field = smooth_field(contour_field, iterations=2)
 
     RA, DEC = np.meshgrid(ra_centers, dec_centers)
+    best_overall = None
 
     for pct in percentile_levels:
         level = float(np.nanpercentile(log_flux[valid], pct))
@@ -162,7 +266,6 @@ def select_substructure_by_contours(
                     continue
 
                 area = polygon_area(verts)
-                # Prefer the most localized contour (smallest area) at this level.
                 candidate = {
                     "percentile": float(pct),
                     "level_log_flux": level,
@@ -171,18 +274,24 @@ def select_substructure_by_contours(
                     "area_deg2": area,
                     "verts": verts,
                 }
+                # At a fixed level, use the smallest enclosing contour if nested contours exist.
                 if best is None or candidate["area_deg2"] < best["area_deg2"]:
                     best = candidate
 
         plt.close(fig_tmp)
 
         if best is not None:
-            rows, cols = np.where(best["cells_mask"])
-            best["cell_ra"] = ra_centers[cols]
-            best["cell_dec"] = dec_centers[rows]
-            return best
+            # Across levels, prefer the broader nebula around the source, not the first bright knot.
+            if best_overall is None or best["n_cells"] > best_overall["n_cells"]:
+                best_overall = best
 
-    return None
+    if best_overall is None:
+        return None
+
+    rows, cols = np.where(best_overall["cells_mask"])
+    best_overall["cell_ra"] = ra_centers[cols]
+    best_overall["cell_dec"] = dec_centers[rows]
+    return best_overall
 
 
 def seed_component(mask: np.ndarray, r0: int, c0: int):
@@ -226,10 +335,11 @@ def select_substructure_by_threshold_component(
     dec_centers: np.ndarray,
     src_ra: float,
     src_dec: float,
-    percentile_levels=(99.5, 99.0, 98.0, 97.0, 95.0, 93.0, 90.0, 85.0, 80.0, 75.0, 70.0),
-    min_cells: int = 3,
+    percentile_levels=NEBULA_PERCENTILE_LEVELS,
+    min_cells: int = 25,
+    bridge_iterations: int = 2,
 ):
-    """Fallback: choose isoflux connected component containing or nearest to centroid cell."""
+    """Fallback: choose a broad isoflux component containing or nearest the source."""
     valid = np.isfinite(mean_flux) & (counts > 0) & (mean_flux > 0)
     if not np.any(valid):
         return None
@@ -239,15 +349,16 @@ def select_substructure_by_threshold_component(
 
     c0 = int(np.clip(np.searchsorted(ra_centers, src_ra), 0, len(ra_centers) - 1))
     r0 = int(np.clip(np.searchsorted(dec_centers, src_dec), 0, len(dec_centers) - 1))
+    best_containing = None
 
     for pct in percentile_levels:
         level = float(np.nanpercentile(log_flux[valid], pct))
-        mask = valid & (log_flux >= level)
+        mask = dilate_mask(valid & (log_flux >= level), iterations=bridge_iterations) & valid
         rows, cols = seed_component(mask, r0, c0)
         if rows.size < min_cells:
             continue
 
-        return {
+        candidate = {
             "percentile": float(pct),
             "level_log_flux": level,
             "cell_ra": ra_centers[cols],
@@ -255,24 +366,30 @@ def select_substructure_by_threshold_component(
             "n_cells": int(rows.size),
             "contains_centroid": True,
         }
+        if best_containing is None or candidate["n_cells"] > best_containing["n_cells"]:
+            best_containing = candidate
+
+    if best_containing is not None:
+        return best_containing
 
     # Secondary fallback: choose nearest connected threshold component.
+    best_nearest = None
     for pct in percentile_levels:
         level = float(np.nanpercentile(log_flux[valid], pct))
-        mask = valid & (log_flux >= level)
+        mask = dilate_mask(valid & (log_flux >= level), iterations=bridge_iterations) & valid
         comps = connected_components(mask)
-        best = None
+        nearest_at_level = None
         for cells in comps:
             if len(cells) < min_cells:
                 continue
             rows = np.array([rc[0] for rc in cells], dtype=int)
             cols = np.array([rc[1] for rc in cells], dtype=int)
             d2 = np.min((rows - r0) ** 2 + (cols - c0) ** 2)
-            if best is None or d2 < best[0]:
-                best = (d2, rows, cols)
-        if best is not None:
-            _, rows, cols = best
-            return {
+            if nearest_at_level is None or d2 < nearest_at_level[0]:
+                nearest_at_level = (d2, rows, cols)
+        if nearest_at_level is not None:
+            d2, rows, cols = nearest_at_level
+            candidate = {
                 "percentile": float(pct),
                 "level_log_flux": level,
                 "cell_ra": ra_centers[cols],
@@ -280,8 +397,17 @@ def select_substructure_by_threshold_component(
                 "n_cells": int(rows.size),
                 "contains_centroid": False,
             }
+            if (
+                best_nearest is None
+                or candidate["n_cells"] > best_nearest["n_cells"]
+                or (candidate["n_cells"] == best_nearest["n_cells"] and d2 < best_nearest["distance2"])
+            ):
+                candidate["distance2"] = float(d2)
+                best_nearest = candidate
 
-    return None
+    if best_nearest is not None:
+        best_nearest.pop("distance2", None)
+    return best_nearest
 
 
 def connected_components(mask: np.ndarray):
@@ -343,9 +469,60 @@ def nearest_occupied_cell(r0: int, c0: int, occupied: np.ndarray):
     return int(ys[k]), int(xs[k])
 
 
+def select_source_aperture_nebula(
+    mean_flux: np.ndarray,
+    counts: np.ndarray,
+    ra_centers: np.ndarray,
+    dec_centers: np.ndarray,
+    src_ra: float,
+    src_dec: float,
+    min_cells: int = 100,
+):
+    """Select observed nebular cells in a growing aperture around the ionizing source."""
+    valid = np.isfinite(mean_flux) & (counts > 0) & (mean_flux > 0)
+    if not np.any(valid):
+        return None
+
+    log_flux = np.full_like(mean_flux, np.nan, dtype=float)
+    log_flux[valid] = np.log10(mean_flux[valid])
+    floor = float(np.nanpercentile(log_flux[valid], 30.0))
+    RA, DEC = np.meshgrid(ra_centers, dec_centers)
+    cos_dec = max(np.cos(np.deg2rad(src_dec)), 0.2)
+    dist = np.hypot((RA - src_ra) * cos_dec, DEC - src_dec)
+    field_radius = 0.5 * np.hypot(
+        (float(np.max(ra_centers)) - float(np.min(ra_centers))) * cos_dec,
+        float(np.max(dec_centers)) - float(np.min(dec_centers)),
+    )
+
+    best = None
+    for radius in np.linspace(0.08 * field_radius, 0.35 * field_radius, 8):
+        mask = valid & (dist <= radius) & (log_flux >= floor)
+        n_cells = int(np.sum(mask))
+        if n_cells == 0:
+            continue
+        candidate = {
+            "percentile": 30.0,
+            "level_log_flux": floor,
+            "mask": mask,
+            "radius_deg": float(radius),
+            "n_cells": n_cells,
+        }
+        best = candidate
+        if n_cells >= min_cells:
+            break
+
+    if best is None:
+        return None
+
+    rows, cols = np.where(best["mask"])
+    best["cell_ra"] = ra_centers[cols]
+    best["cell_dec"] = dec_centers[rows]
+    return best
+
+
 def main():
-    source_catalog = "Figures/bright_sources/nii_bright_source_catalog.csv"
-    rank1 = load_rank1_sources(source_catalog)
+    source_catalog = "ionizing_sources.xlsx"
+    ionizing_sources = load_ionizing_sources(source_catalog)
 
     fits_files = sorted(glob.glob("LVM_*.fits"))
     if not fits_files:
@@ -360,9 +537,9 @@ def main():
 
     for fits_path in fits_files:
         region = os.path.splitext(os.path.basename(fits_path))[0].replace("LVM_", "")
-        src = rank1.get(region)
+        src = get_region_source(region, ionizing_sources)
         if src is None:
-            print(f"Skipping {region}: no rank-1 source in catalog")
+            print(f"Skipping {region}: no ionizing-source coordinates in {source_catalog}")
             continue
 
         ra, dec, flux = load_valid_points(fits_path, snr_min=5.0)
@@ -379,15 +556,27 @@ def main():
             counts,
             ra_centers,
             dec_centers,
-            src["centroid_ra"],
-            src["centroid_dec"],
+            src["ra"],
+            src["dec"],
+        )
+        thresh_pick = select_substructure_by_threshold_component(
+            mean_flux,
+            counts,
+            ra_centers,
+            dec_centers,
+            src["ra"],
+            src["dec"],
         )
 
         method = "contour"
         chosen_id = 1
         n_components_total = 1
 
-        if contour_pick is not None:
+        use_contour = contour_pick is not None and (
+            thresh_pick is None or int(contour_pick["n_cells"]) >= int(thresh_pick["n_cells"])
+        )
+
+        if use_contour:
             comp_ra = contour_pick["cell_ra"]
             comp_dec = contour_pick["cell_dec"]
             area_deg2 = float(contour_pick["area_deg2"])
@@ -396,14 +585,6 @@ def main():
             contour_level = float(contour_pick["level_log_flux"])
             contour_verts = contour_pick["verts"]
         else:
-            thresh_pick = select_substructure_by_threshold_component(
-                mean_flux,
-                counts,
-                ra_centers,
-                dec_centers,
-                src["centroid_ra"],
-                src["centroid_dec"],
-            )
             if thresh_pick is None:
                 print(f"Skipping {region}: no threshold component encloses centroid")
                 continue
@@ -421,6 +602,27 @@ def main():
             contour_level = float(thresh_pick["level_log_flux"])
             contour_verts = None
 
+        if component_cells < 100:
+            aperture_pick = select_source_aperture_nebula(
+                mean_flux,
+                counts,
+                ra_centers,
+                dec_centers,
+                src["ra"],
+                src["dec"],
+                min_cells=100,
+            )
+            if aperture_pick is not None and int(aperture_pick["n_cells"]) > component_cells:
+                comp_ra = aperture_pick["cell_ra"]
+                comp_dec = aperture_pick["cell_dec"]
+                cell_area = (ra_edges[1] - ra_edges[0]) * (dec_edges[1] - dec_edges[0])
+                area_deg2 = float(aperture_pick["n_cells"] * abs(cell_area))
+                component_cells = int(aperture_pick["n_cells"])
+                method = "source_aperture_nebula"
+                contour_pct = float(aperture_pick["percentile"])
+                contour_level = float(aperture_pick["level_log_flux"])
+                contour_verts = None
+
         results.append(
             {
                 "region": region,
@@ -435,10 +637,13 @@ def main():
                 "component_ra_max": float(np.max(comp_ra)),
                 "component_dec_min": float(np.min(comp_dec)),
                 "component_dec_max": float(np.max(comp_dec)),
-                "source_peak_ra": src["peak_ra"],
-                "source_peak_dec": src["peak_dec"],
-                "source_centroid_ra": src["centroid_ra"],
-                "source_centroid_dec": src["centroid_dec"],
+                "source_catalog_region": src["catalog_region"],
+                "source_name": src["source"],
+                "source_type": src["source_type"],
+                "source_gal_l": src["gal_l"],
+                "source_gal_b": src["gal_b"],
+                "source_ra": src["ra"],
+                "source_dec": src["dec"],
             }
         )
 
@@ -448,8 +653,17 @@ def main():
         ax.scatter(comp_ra, comp_dec, s=9, c="cyan", alpha=0.9, linewidths=0, label="occupied subregion")
         if contour_verts is not None:
             ax.plot(contour_verts[:, 0], contour_verts[:, 1], color="white", linewidth=1.6, alpha=0.9, label="selected contour")
-        ax.scatter(src["peak_ra"], src["peak_dec"], marker="*", s=220, c="white", edgecolor="black", linewidth=0.9, zorder=10, label="source peak")
-        ax.scatter(src["centroid_ra"], src["centroid_dec"], marker="x", s=90, c="deepskyblue", linewidth=2.0, zorder=10, label="source centroid")
+        ax.scatter(
+            src["ra"],
+            src["dec"],
+            marker="*",
+            s=220,
+            c="white",
+            edgecolor="black",
+            linewidth=0.9,
+            zorder=10,
+            label="ionizing source",
+        )
         ax.invert_xaxis()
         if method == "contour":
             ax.set_title(

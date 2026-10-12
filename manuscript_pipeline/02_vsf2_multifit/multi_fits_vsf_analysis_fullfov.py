@@ -26,7 +26,13 @@ plt.style.use('./custom_plot.mplstyle')
 
 NPZ_OUTPUT_DIR = 'NPZ'
 VSF_ERROR_MODE = 'bootstrap'
+MIN_SEPARATION_ARCSEC = 37.0
 MAX_REGIONS = int(sys.argv[1]) if len(sys.argv) > 1 else None
+
+
+def arcsec_to_pc(angle_arcsec, distance_pc):
+    """Convert an angular separation at distance_pc to a physical separation."""
+    return distance_pc * np.deg2rad(angle_arcsec / 3600.0)
 
 
 def get_heliocentric_distance(filename):
@@ -174,6 +180,8 @@ for filename in files_to_process:
     available_lines = get_available_lines(filename)
     distance = get_heliocentric_distance(filename)
     print(f"  Distance: {distance:.1f} pc")
+    min_separation_pc = arcsec_to_pc(MIN_SEPARATION_ARCSEC, distance)
+    print(f"  Minimum separation: {MIN_SEPARATION_ARCSEC:.1f} arcsec = {min_separation_pc:.4f} pc")
 
     row = plot_idx // n_cols
     col = plot_idx % n_cols
@@ -194,6 +202,7 @@ for filename in files_to_process:
                 min_pairs=3,
                 bin_resolution=20,
                 error_mode=VSF_ERROR_MODE,
+                min_separation=min_separation_pc,
             )
 
             valid = np.isfinite(vsf_total) & np.isfinite(vsf_total_err) & (counts_total > 0)
@@ -217,6 +226,8 @@ for filename in files_to_process:
                 log_centers=np.log10(r_total),
                 counts=counts_total,
                 error_mode=VSF_ERROR_MODE,
+                min_separation_arcsec=MIN_SEPARATION_ARCSEC,
+                min_separation_pc=min_separation_pc,
             )
             print(f"    Saved {npz_out}")
 

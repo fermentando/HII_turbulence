@@ -24,9 +24,14 @@ plt.style.use('./custom_plot.mplstyle')
 
 NPZ_OUTPUT_DIR = 'NPZ'
 VSF_ERROR_MODE = 'bootstrap'
+MIN_SEPARATION_ARCSEC = 37.0
 
 # Optional CLI arg: limit to first N regions for quick preview/testing.
 MAX_REGIONS = int(sys.argv[1]) if len(sys.argv) > 1 else None
+
+def arcsec_to_pc(angle_arcsec, distance_pc):
+    """Convert an angular separation at distance_pc to a physical separation."""
+    return distance_pc * np.deg2rad(angle_arcsec / 3600.0)
 
 def get_heliocentric_distance(filename):
     """Get heliocentric distance for an object from the HII regions table"""
@@ -138,7 +143,8 @@ def _passes_fill_fraction(xw, yw, x0, x1, y0, y1, fill_fraction=0.7, n_sub=5):
 
 def compute_peak_aligned_subwindow_vsfs(vsf_obj, window_size, peak_ra, peak_dec,
                                         order=2, n_jobs=4, bin_resolution=20,
-                                        min_points=50, fill_fraction=0.7, n_sub=5):
+                                        min_points=50, fill_fraction=0.7, n_sub=5,
+                                        min_separation=None):
     """Compute subwindow VSFs on a grid anchored so one cell is centered at peak."""
     x_all = vsf_obj.x_physical.value if hasattr(vsf_obj.x_physical, 'value') else vsf_obj.x_physical
     y_all = vsf_obj.y_physical.value if hasattr(vsf_obj.y_physical, 'value') else vsf_obj.y_physical
@@ -178,7 +184,14 @@ def compute_peak_aligned_subwindow_vsfs(vsf_obj, window_size, peak_ra, peak_dec,
                 continue
 
             data = {'x': xw, 'y': yw}
-            log_centers = vsf_obj.generate_bins_2d(data, bin_resolution=bin_resolution)
+            try:
+                log_centers = vsf_obj.generate_bins_2d(
+                    data,
+                    bin_resolution=bin_resolution,
+                    min_separation=min_separation,
+                )
+            except ValueError:
+                continue
             edges = vsf_obj.generate_bins_edges(log_centers)
             bin_edges = 10**edges
 
@@ -187,7 +200,8 @@ def compute_peak_aligned_subwindow_vsfs(vsf_obj, window_size, peak_ra, peak_dec,
 
             chunks = [
                 vsf_obj.compute_vsf_chunk_2d(
-                    xw, yw, velw, np.zeros_like(velw), bin_edges, seed, order
+                    xw, yw, velw, np.zeros_like(velw), bin_edges, seed, order,
+                    min_separation
                 ) for seed in seeds
             ]
 
@@ -309,7 +323,8 @@ def _median_relative_uncertainty_pct(vsf, vsf_err):
         return np.nan
     return np.nanmedian(rel)
 
-def compute_vsf_for_line(ra, dec, flux, vel, vel_err, window_size, distance):
+def compute_vsf_for_line(ra, dec, flux, vel, vel_err, window_size, distance,
+                         min_separation):
     """Compute VSF variants for a single line: mean and median (all subwindows)."""
     vsf_subwindows = VSF2DSubwindows(ra, dec, vel, dist=distance)
 
@@ -328,7 +343,8 @@ def compute_vsf_for_line(ra, dec, flux, vel, vel_err, window_size, distance):
         bin_resolution=bin_resolution,
         min_points=50,
         fill_fraction=0.7,
-        n_sub=5
+        n_sub=5,
+        min_separation=min_separation,
     )
 
     mean_data = _aggregate_vsf_from_results(
@@ -468,6 +484,8 @@ for filename in files_to_process:
     # Get heliocentric distance for this object
     distance = get_heliocentric_distance(filename)
     print(f"  Distance: {distance:.1f} pc")
+    min_separation_pc = arcsec_to_pc(MIN_SEPARATION_ARCSEC, distance)
+    print(f"  Minimum separation: {MIN_SEPARATION_ARCSEC:.1f} arcsec = {min_separation_pc:.4f} pc")
     
     # Select region subplot in the global grid.
     row = plot_idx // n_cols
@@ -493,7 +511,8 @@ for filename in files_to_process:
 
             # Compute VSFs from all subwindows: mean and median aggregations.
             mean_data, median_data, diag = compute_vsf_for_line(
-                ra, dec, flux, vel, vel_err, window_size, distance
+                ra, dec, flux, vel, vel_err, window_size, distance,
+                min_separation_pc
             )
 
             peak_msg = "included" if diag['peak_included'] else "rejected"
@@ -526,7 +545,9 @@ for filename in files_to_process:
                 vsf=vsf_mean,
                 vsf_err=err_mean,
                 log_centers=log_mean,
-                counts=cnt_mean
+                counts=cnt_mean,
+                min_separation_arcsec=MIN_SEPARATION_ARCSEC,
+                min_separation_pc=min_separation_pc,
             )
 
             npz_exclude = os.path.join(NPZ_OUTPUT_DIR, f'VSF_{object_name}_{line.upper()}_median_allsubwindows.npz')
@@ -535,7 +556,9 @@ for filename in files_to_process:
                 vsf=vsf_median,
                 vsf_err=err_median,
                 log_centers=log_median,
-                counts=cnt_median
+                counts=cnt_median,
+                min_separation_arcsec=MIN_SEPARATION_ARCSEC,
+                min_separation_pc=min_separation_pc,
             )
             print(f"    ✓ Saved {npz_include} and {npz_exclude}")
 
@@ -603,6 +626,7 @@ for filename in files_to_process:
                 min_pairs=3,
                 bin_resolution=20,
                 error_mode=VSF_ERROR_MODE,
+                min_separation=min_separation_pc,
             )
             valid = np.isfinite(vsf_total) & (counts_total > 0)
             if np.any(valid):
