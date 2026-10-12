@@ -1,4 +1,17 @@
 *.fits
+# Small enough to track despite the blanket *.fits ignore above (LVM_Orion.fits
+# at 152MB exceeds GitHub's 100MB limit, so it stays excluded).
+!/extra_HII_regions.fits
+!/LVM_Flame_nebula.fits
+!/LVM_BFS65.fits
+!/LVM_Gum31.fits
+!/LVM_RCW52.fits
+!/LVM_RCW79.fits
+!/LVM_RCW87.fits
+!/LVM_Gum38a.fits
+!/LVM_RCW60.fits
+!/LVM_Sh2-311.fits
+!/LVM_Rosette_nebula.fits
 *.npz
 *.png
 *.pdf
