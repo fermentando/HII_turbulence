@@ -62,7 +62,6 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(CORE_DIR))
 
 from vsf_module import compute_bins, compute_pdf_and_statistics  # noqa: E402
-from projected_cube_kurtosis import kurtosis_from_pdf  # noqa: E402
 from generate_shell_thickness_grid import width_grid, shell_output_path, R_OUTER_FIXED  # noqa: E402
 from plot_shell_dk_dlogr_aperture_comparison import fit_k_vs_logr_above_floor  # noqa: E402
 from plot_shell_kurtosis_slope_vs_thickness import KURTOSIS_FLOOR  # noqa: E402
@@ -114,7 +113,7 @@ def slope_for_width(y: np.ndarray, z: np.ndarray, v: np.ndarray, min_separation:
         pdf, c2, c4, cnt, dv_centers, kk_pairs = compute_pdf_and_statistics(
             y, z, v, vel_err, log_centers, bin_edges, dv_bins, order=1, n_jobs=n_jobs,
         )
-    kk = kurtosis_from_pdf(pdf, dv_centers)
+    kk = kk_pairs
     record = {"r": 10**log_centers, "kk": kk}
     fit = fit_k_vs_logr_above_floor(record, floor=KURTOSIS_FLOOR)
     return fit["slope"], bool(fit["used_zero_fallback"])

@@ -105,9 +105,9 @@ def make_kurtosis_plot(
             linewidth=1.0,
         )
 
-    ax.set_xlabel(r"$(\Delta v_{\rm LOS})$", fontsize=14, labelpad=10)
+    ax.set_xlabel(r"$\Delta v_{\rm LOS}$", fontsize=14, labelpad=10)
     ax.set_ylabel(r"$\log r_{\rm proj}$", fontsize=14, labelpad=10)
-    ax.set_zlabel(r"$\mathcal{P}(\Delta v_{\rm LOS})$", fontsize=14, labelpad=10)
+    ax.set_zlabel(r"$\mathcal{P}(|\Delta v_{\rm LOS}|)$", fontsize=14, labelpad=10)
     ax.set_xlim(float(np.nanmin(dv_centers[mask])), float(np.nanmax(dv_centers[mask])))
     ax.set_ylim(np.log10(r[0]), np.log10(r[-1]))
     ax.view_init(elev=25, azim=45)
@@ -150,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bin-resolution", type=int, default=20)
     parser.add_argument("--n-jobs", type=int, default=1)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--x-min", type=float, default=-6.0)
+    parser.add_argument("--x-min", type=float, default=0.0)
     parser.add_argument("--x-max", type=float, default=6.0)
     return parser
 

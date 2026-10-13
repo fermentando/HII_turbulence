@@ -243,7 +243,7 @@ def main() -> None:
         pdf=pdf,
         dv_bins=dv_bins,
         log_centers=log_centers,
-        kk=kk_pdf,
+        kk=kk_pairs,
         kk_pdf=kk_pdf,
         kk_pairs=kk_pairs,
         c2=c2,
@@ -264,19 +264,19 @@ def main() -> None:
         args.r_outer,
         args.render_stride,
     )
-    make_kurtosis_plot(pdf, dv_bins, log_centers, kk_pdf, kurt_out, args.x_min, args.x_max)
+    make_kurtosis_plot(pdf, dv_bins, log_centers, kk_pairs, kurt_out, args.x_min, args.x_max)
     make_kurtosis_with_gaussian_slices_plot(
         pdf,
         dv_bins,
         log_centers,
-        kk_pdf,
+        kk_pairs,
         slices_out,
         args.x_min,
         args.x_max,
         args.n_slices,
     )
 
-    finite = kk_pdf[np.isfinite(kk_pdf) & (kk_pdf > 0)]
+    finite = kk_pairs[np.isfinite(kk_pairs) & (kk_pairs > 0)]
     print(f"Wrote {npz_out.relative_to(REPO_ROOT)}")
     print(f"Wrote {map_out.relative_to(REPO_ROOT)}")
     print(f"Wrote {kurt_out.relative_to(REPO_ROOT)}")

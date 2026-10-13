@@ -207,7 +207,7 @@ def write_random_shell_npz(
         pdf=pdf,
         dv_bins=dv_bins,
         log_centers=log_centers,
-        kk=kk_pdf,
+        kk=kk_pairs,
         kk_pdf=kk_pdf,
         kk_pairs=kk_pairs,
         c2=c2,
@@ -219,7 +219,7 @@ def write_random_shell_npz(
         r_min=float(10 ** log_centers[0]),
     )
 
-    finite = kk_pdf[np.isfinite(kk_pdf) & (kk_pdf > 0)]
+    finite = kk_pairs[np.isfinite(kk_pairs) & (kk_pairs > 0)]
     valid_counts = point_counts[point_counts > 0]
     return {
         "n_proj_pixels": int(v_flat.size),

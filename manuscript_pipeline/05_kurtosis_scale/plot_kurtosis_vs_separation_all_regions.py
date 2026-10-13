@@ -7,7 +7,6 @@ linestyles distinguish emission lines. Spiky curves are filtered out.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -17,7 +16,7 @@ matplotlib_backend = "Agg"
 plt.switch_backend(matplotlib_backend)
 
 Y_MAX = 10.0
-RADIUS_CSV = Path("manuscript_notes/adopted_hii_region_radii.csv")
+NPZ_DIR = Path("NPZ_kurtosis")
 LINE_ORDER = ("NII", "SII", "SIII")
 LINE_STYLES = {
     "NII": "-",
@@ -51,19 +50,14 @@ def parse_name(stem: str) -> tuple[str, str]:
 
 
 def load_adopted_radii() -> dict[str, float]:
-    if not RADIUS_CSV.exists():
-        raise FileNotFoundError(RADIUS_CSV)
-
+    """R_HII [pc] per region, as stored by kurtosis_plot.py (get_hii_radius_pc, LVM catalogue)."""
     radii = {}
-    with RADIUS_CSV.open("r", encoding="utf-8", newline="") as fobj:
-        reader = csv.DictReader(fobj)
-        for row in reader:
-            try:
-                radius = float(row["radius_pc"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            if np.isfinite(radius) and radius > 0:
-                radii[row["object"]] = radius
+    for path in sorted(NPZ_DIR.glob("*_order1_pdfkk.npz")):
+        with np.load(path) as data:
+            if "r_hii_pc" in data:
+                radius = float(data["r_hii_pc"])
+                if np.isfinite(radius) and radius > 0:
+                    radii[parse_name(path.stem)[0]] = radius
     return radii
 
 

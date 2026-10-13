@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Plot direct kurtosis vs separation for all regions.
 
-This script computes kurtosis directly from the velocity-difference PDF at each
-separation bin, using central moments of the distribution in dv.
+This script computes kurtosis directly from the folded velocity-difference PDF
+P(|dv|) at each separation bin, using raw moments sum p |dv|^4 / (sum p |dv|^2)^2
+(no mean subtraction: the PDF is of |dv|, and the pair dv has zero mean).
 
 Input: NPZ files in NPZ_kurtosis with keys: pdf, dv_bins (or dv_centers),
        log_centers.
@@ -11,7 +12,6 @@ Output: combined all-region figure + one figure per region in a separate folder.
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -19,7 +19,7 @@ import numpy as np
 
 plt.switch_backend("Agg")
 
-RADIUS_CSV = Path("manuscript_notes/adopted_hii_region_radii.csv")
+NPZ_DIR = Path("NPZ_kurtosis")
 LINE_ORDER = ("NII", "SII", "SIII")
 LINE_STYLES = {
     "NII": "-",
@@ -53,29 +53,23 @@ def parse_name(stem: str) -> tuple[str, str]:
 
 
 def load_adopted_radii() -> dict[str, float]:
-    if not RADIUS_CSV.exists():
-        raise FileNotFoundError(RADIUS_CSV)
-
+    """R_HII [pc] per region, as stored by kurtosis_plot.py (get_hii_radius_pc, LVM catalogue)."""
     radii = {}
-    with RADIUS_CSV.open("r", encoding="utf-8", newline="") as fobj:
-        reader = csv.DictReader(fobj)
-        for row in reader:
-            try:
-                radius = float(row["radius_pc"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            if np.isfinite(radius) and radius > 0:
-                radii[row["object"]] = radius
+    for path in sorted(NPZ_DIR.glob("*_order1_pdfkk.npz")):
+        with np.load(path) as data:
+            if "r_hii_pc" in data:
+                radius = float(data["r_hii_pc"])
+                if np.isfinite(radius) and radius > 0:
+                    radii[parse_name(path.stem)[0]] = radius
     return radii
 
 
 def direct_kurtosis_from_pdf(pdf: np.ndarray, dv_centers: np.ndarray) -> np.ndarray:
-    """Compute kurtosis from PDF rows using central moments.
+    """Compute kurtosis from folded PDF rows using raw moments.
 
     For each separation bin r:
-      mu  = sum p(dv|r) * dv
-      m2  = sum p(dv|r) * (dv - mu)^2
-      m4  = sum p(dv|r) * (dv - mu)^4
+      m2  = sum p(|dv| | r) * |dv|^2
+      m4  = sum p(|dv| | r) * |dv|^4
       kk  = m4 / m2^2
     """
     kk = np.full(pdf.shape[0], np.nan, dtype=float)
@@ -94,12 +88,10 @@ def direct_kurtosis_from_pdf(pdf: np.ndarray, dv_centers: np.ndarray) -> np.ndar
             continue
         p = p / s
 
-        mu = np.sum(p * dv)
-        d = dv - mu
-        m2 = np.sum(p * d**2)
+        m2 = np.sum(p * dv**2)
         if m2 <= 0:
             continue
-        m4 = np.sum(p * d**4)
+        m4 = np.sum(p * dv**4)
         kk[i] = m4 / (m2**2)
 
     return kk
@@ -110,12 +102,10 @@ def row_kurtosis_from_probabilities(probability: np.ndarray, dv: np.ndarray) -> 
     if s <= 0:
         return np.nan
     p = probability / s
-    mu = np.sum(p * dv)
-    delta = dv - mu
-    m2 = np.sum(p * delta**2)
+    m2 = np.sum(p * dv**2)
     if m2 <= 0:
         return np.nan
-    m4 = np.sum(p * delta**4)
+    m4 = np.sum(p * dv**4)
     return float(m4 / m2**2)
 
 
@@ -391,7 +381,7 @@ def main() -> None:
 
     print(f"Saved: {out_png}")
     print(f"Saved: {out_pdf}")
-    print(f"Normalized separations by adopted radii from: {RADIUS_CSV}")
+    print(f"Normalized separations by R_HII stored in: {NPZ_DIR}")
     if skipped_noisy:
         print("Skipped noisy/extreme curves:")
         for item in skipped_noisy:

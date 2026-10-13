@@ -80,17 +80,16 @@ def shell_paths_in_dir(shell_dir: Path) -> list[Path]:
     return sorted(paths, key=width_from_path)
 
 
-def centered_kurtosis_from_probabilities(probability: np.ndarray, dv: np.ndarray) -> float:
+def raw_kurtosis_from_probabilities(probability: np.ndarray, dv: np.ndarray) -> float:
+    """sum p |dv|^4 / (sum p |dv|^2)^2 for a folded P(|dv|) histogram (no mean subtraction)."""
     p_sum = np.sum(probability)
     if p_sum <= 0:
         return np.nan
     p = probability / p_sum
-    mean = np.sum(p * dv)
-    centered = dv - mean
-    m2 = np.sum(p * centered**2)
+    m2 = np.sum(p * dv**2)
     if m2 <= 0:
         return np.nan
-    m4 = np.sum(p * centered**4)
+    m4 = np.sum(p * dv**4)
     return float(m4 / m2**2)
 
 
@@ -98,7 +97,7 @@ def bootstrap_kurtosis_from_pdf(
     pdf: np.ndarray, dv_centers: np.ndarray, counts: np.ndarray, rng: np.random.Generator,
     n_boot: int = BOOTSTRAP_DRAWS,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """16th/84th percentile band for the centered kurtosis of each r bin."""
+    """16th/84th percentile band for the kurtosis of each r bin (multinomial resampling of P(|dv|))."""
     lo = np.full(pdf.shape[0], np.nan)
     hi = np.full(pdf.shape[0], np.nan)
     for i, row in enumerate(pdf):
@@ -120,7 +119,7 @@ def bootstrap_kurtosis_from_pdf(
         draws = np.empty(n_boot, dtype=float)
         for j in range(n_boot):
             sampled = rng.multinomial(n_eff, p)
-            draws[j] = centered_kurtosis_from_probabilities(sampled.astype(float), dv)
+            draws[j] = raw_kurtosis_from_probabilities(sampled.astype(float), dv)
 
         finite_draws = draws[np.isfinite(draws)]
         if finite_draws.size >= 10:

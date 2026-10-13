@@ -67,8 +67,8 @@ def aperture_stats(
             n_jobs=n_jobs,
         )
     kk_pdf = kurtosis_from_pdf(pdf, dv_centers)
-    finite = np.isfinite(kk_pdf)
-    above = finite & (kk_pdf > 3.0)
+    finite = np.isfinite(kk_pairs)
+    above = finite & (kk_pairs > 3.0)
     path = path_length[use]
     return {
         "radius_cut": radius_cut,
@@ -81,8 +81,9 @@ def aperture_stats(
         "pdf": pdf,
         "dv_bins": dv_bins,
         "dv_centers": dv_centers,
-        "kk": kk_pdf,
+        "kk": kk_pairs,
         "kk_pairs": kk_pairs,
+        "kk_pdf": kk_pdf,
         "cnt": cnt,
         "c2": c2,
         "c4": c4,
@@ -91,8 +92,8 @@ def aperture_stats(
         "path_max": float(np.nanmax(path)),
         "path_median": float(np.nanmedian(path)),
         "path_std": float(np.nanstd(path)),
-        "k_median": float(np.nanmedian(kk_pdf[finite])) if np.any(finite) else np.nan,
-        "k_max": float(np.nanmax(kk_pdf[finite])) if np.any(finite) else np.nan,
+        "k_median": float(np.nanmedian(kk_pairs[finite])) if np.any(finite) else np.nan,
+        "k_max": float(np.nanmax(kk_pairs[finite])) if np.any(finite) else np.nan,
         "n_above3": int(np.count_nonzero(above)),
         "first_above3_r": float(np.nanmin((10**log_centers)[above])) if np.any(above) else np.nan,
     }
@@ -113,6 +114,7 @@ def save_aperture_npz(record: dict, out_dir: Path) -> None:
         log_centers=record["log_centers"],
         kk=record["kk"],
         kk_pairs=record["kk_pairs"],
+        kk_pdf=record["kk_pdf"],
         c2=record["c2"],
         c4=record["c4"],
         cnt=record["cnt"],
@@ -203,12 +205,12 @@ def plot_gaussian_examples(records: list[dict], out: Path) -> None:
         mean, sigma, model = gaussian_from_pdf(record["pdf"][idx], record["dv_centers"])
         good_pdf = np.isfinite(record["pdf"][idx]) & (record["pdf"][idx] > 0)
         good_model = np.isfinite(model) & (model > 0)
-        ax_pdf.semilogy(record["dv_centers"][good_pdf], record["pdf"][idx][good_pdf], "o", ms=3, label=r"$P(\Delta v)$")
-        ax_pdf.semilogy(record["dv_centers"][good_model], model[good_model], color="0.1", lw=1.5, label="Gaussian")
+        ax_pdf.semilogy(record["dv_centers"][good_pdf], record["pdf"][idx][good_pdf], "o", ms=3, label=r"$P(|\Delta v|)$")
+        ax_pdf.semilogy(record["dv_centers"][good_model], model[good_model], color="0.1", lw=1.5, label="half-normal")
         ax_pdf.set_title(fr"$r={record['r'][idx]:.3f}$, $K={record['kk'][idx]:.2f}$", fontsize=9)
         ax_pdf.set_xlabel(r"$\Delta\langle v_x\rangle_x$")
         if col == 0:
-            ax_pdf.set_ylabel(r"$P(\Delta v)$")
+            ax_pdf.set_ylabel(r"$P(|\Delta v|)$")
             ax_pdf.legend(frameon=False, fontsize=8)
         if np.isfinite(mean) and np.isfinite(sigma):
             ax_pdf.text(0.03, 0.92, fr"$\sigma={sigma:.2f}$", transform=ax_pdf.transAxes, va="top", fontsize=8)

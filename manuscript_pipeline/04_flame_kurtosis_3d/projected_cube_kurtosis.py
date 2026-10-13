@@ -84,7 +84,11 @@ def finite_kurtosis_norm(kk: np.ndarray, default_min: float = 3.0, default_max: 
 
 
 def kurtosis_from_pdf(pdf: np.ndarray, dv_centers: np.ndarray) -> np.ndarray:
-    """Compute centered kurtosis directly from each P(delta-v) curve."""
+    """Raw-moment kurtosis sum p |dv|^4 / (sum p |dv|^2)^2 of each folded P(|dv|) curve.
+
+    The PDFs are of |dv| = sqrt(dv^2) (vsf_module folds them), so no mean is subtracted:
+    the pair dv has zero mean. Diagnostic only; the stored kk is the pair kurtosis.
+    """
     kk = np.full(pdf.shape[0], np.nan)
     for i, row in enumerate(pdf):
         good = np.isfinite(row) & np.isfinite(dv_centers) & (row > 0)
@@ -96,17 +100,19 @@ def kurtosis_from_pdf(pdf: np.ndarray, dv_centers: np.ndarray) -> np.ndarray:
             continue
         p /= p_sum
         dv = dv_centers[good]
-        mean = np.sum(p * dv)
-        centered = dv - mean
-        m2 = np.sum(p * centered**2)
-        m4 = np.sum(p * centered**4)
+        m2 = np.sum(p * dv**2)
+        m4 = np.sum(p * dv**4)
         if m2 > 0:
             kk[i] = m4 / m2**2
     return kk
 
 
 def gaussian_from_pdf(row: np.ndarray, dv_centers: np.ndarray) -> tuple[float, float, np.ndarray]:
-    """Return the moment-matched Gaussian for a discrete P(delta-v) curve."""
+    """Return the moment-matched half-normal for a folded P(|dv|) curve.
+
+    A Gaussian dv with zero mean and sigma^2 = <dv^2> folds to a half-normal in |dv|;
+    the returned mean is 0 for compatibility with the old signed-PDF callers.
+    """
     good = np.isfinite(row) & np.isfinite(dv_centers) & (row > 0)
     if not np.any(good):
         return np.nan, np.nan, np.full_like(dv_centers, np.nan, dtype=float)
@@ -114,12 +120,12 @@ def gaussian_from_pdf(row: np.ndarray, dv_centers: np.ndarray) -> tuple[float, f
     p = row[good].astype(float)
     p /= np.sum(p)
     dv = dv_centers[good]
-    mean = np.sum(p * dv)
-    sigma = np.sqrt(np.sum(p * (dv - mean) ** 2))
+    mean = 0.0
+    sigma = np.sqrt(np.sum(p * dv**2))
 
     model = np.full_like(dv_centers, np.nan, dtype=float)
     if sigma > 0:
-        model_good = np.exp(-0.5 * ((dv - mean) / sigma) ** 2)
+        model_good = np.exp(-0.5 * (dv / sigma) ** 2)
         model_good *= np.sum(row[good]) / np.sum(model_good)
         model[good] = model_good
     return mean, sigma, model
@@ -168,7 +174,7 @@ def make_kurtosis_plot(
     r = 10**log_centers
     dv_centers = 0.5 * (dv_bins[:-1] + dv_bins[1:])
     if x_min is None:
-        x_min = float(np.nanpercentile(dv_centers, 2))
+        x_min = 0.0
     if x_max is None:
         x_max = float(np.nanpercentile(dv_centers, 98))
     mask = (dv_centers >= x_min) & (dv_centers <= x_max)
@@ -195,9 +201,9 @@ def make_kurtosis_plot(
             linewidth=1.0,
         )
 
-    ax.set_xlabel(r"$(\Delta \langle v_x\rangle_x)$", fontsize=14, labelpad=10)
+    ax.set_xlabel(r"$\Delta \langle v_x\rangle_x$", fontsize=14, labelpad=10)
     ax.set_ylabel(r"$\log r_{\rm proj}$", fontsize=14, labelpad=10)
-    ax.set_zlabel(r"$\mathcal{P}(\Delta v)$", fontsize=14, labelpad=10)
+    ax.set_zlabel(r"$\mathcal{P}(|\Delta v|)$", fontsize=14, labelpad=10)
     ax.set_xlim(float(np.nanmin(dv_centers[mask])), float(np.nanmax(dv_centers[mask])))
     ax.set_ylim(np.log10(r[0]), np.log10(r[-1]))
     ax.view_init(elev=25, azim=45)
@@ -221,7 +227,7 @@ def make_kurtosis_plot(
         axis.pane.fill = False
         axis.pane.set_edgecolor("w")
 
-    ax.set_title(r"x-projected cube, kurtosis from $P(\Delta v)$", pad=18)
+    ax.set_title(r"x-projected cube, pair kurtosis, $P(|\Delta v|)$", pad=18)
     mappable = cm.ScalarMappable(cmap=cmap, norm=norm)
     mappable.set_array([])
     cbar = plt.colorbar(mappable, cax=cax, orientation="horizontal")
@@ -245,7 +251,7 @@ def make_kurtosis_with_gaussian_slices_plot(
     r = 10**log_centers
     dv_centers = 0.5 * (dv_bins[:-1] + dv_bins[1:])
     if x_min is None:
-        x_min = float(np.nanpercentile(dv_centers, 2))
+        x_min = 0.0
     if x_max is None:
         x_max = float(np.nanpercentile(dv_centers, 98))
     mask = (dv_centers >= x_min) & (dv_centers <= x_max)
@@ -278,16 +284,16 @@ def make_kurtosis_with_gaussian_slices_plot(
             alpha=alpha,
         )
 
-    ax.set_xlabel(r"$(\Delta \langle v_x\rangle_x)$", fontsize=12, labelpad=8)
+    ax.set_xlabel(r"$\Delta \langle v_x\rangle_x$", fontsize=12, labelpad=8)
     ax.set_ylabel(r"$\log r_{\rm proj}$", fontsize=12, labelpad=8)
-    ax.set_zlabel(r"$\mathcal{P}(\Delta v)$", fontsize=12, labelpad=8)
+    ax.set_zlabel(r"$\mathcal{P}(|\Delta v|)$", fontsize=12, labelpad=8)
     ax.set_xlim(float(np.nanmin(dv_centers[mask])), float(np.nanmax(dv_centers[mask])))
     ax.set_ylim(np.log10(r[0]), np.log10(r[-1]))
     ax.view_init(elev=25, azim=45)
     positive = pdf[:, mask][np.isfinite(pdf[:, mask]) & (pdf[:, mask] > 0)]
     ax.set_zlim(max(float(np.nanpercentile(positive, 1)), 1e-4), min(float(np.nanmax(positive)), 1.0))
     ax.set_zscale("log")
-    ax.set_title(r"PDF surface colored by $K[P(\Delta v)]$", pad=14)
+    ax.set_title(r"$P(|\Delta v|)$ surface colored by pair kurtosis $K$", pad=14)
     ax.xaxis.set_major_locator(MaxNLocator(5))
     ax.yaxis.set_major_locator(MaxNLocator(5))
     ax.zaxis.set_major_locator(MaxNLocator(5))
@@ -313,27 +319,27 @@ def make_kurtosis_with_gaussian_slices_plot(
             "o",
             ms=4,
             color=color,
-            label=r"$P(\Delta v)$",
+            label=r"$P(|\Delta v|)$",
         )
         ax_slice.semilogy(
             dv_centers[good_model],
             model[good_model],
             color="0.1",
             lw=1.8,
-            label="Gaussian",
+            label="half-normal",
         )
         ax_slice.set_title(
             fr"$r_{{proj}}={r[idx]:.3f}$, $K={kk[idx]:.2f}$",
             fontsize=11,
         )
         ax_slice.set_xlabel(r"$\Delta \langle v_x\rangle_x$")
-        ax_slice.set_ylabel(r"$P(\Delta v)$")
+        ax_slice.set_ylabel(r"$P(|\Delta v|)$")
         ax_slice.set_xlim(float(np.nanmin(dv_centers[mask])), float(np.nanmax(dv_centers[mask])))
         if np.isfinite(mean) and np.isfinite(sigma):
             ax_slice.text(
                 0.03,
                 0.92,
-                fr"$\mu={mean:.2f}$" + "\n" + fr"$\sigma={sigma:.2f}$",
+                fr"$\sigma={sigma:.2f}$",
                 transform=ax_slice.transAxes,
                 ha="left",
                 va="top",
@@ -411,7 +417,7 @@ def main() -> None:
         pdf=pdf,
         dv_bins=dv_bins,
         log_centers=log_centers,
-        kk=kk_pdf,
+        kk=kk_pairs,
         kk_pairs=kk_pairs,
         kk_pdf=kk_pdf,
         c2=c2,
@@ -420,19 +426,19 @@ def main() -> None:
         dv_centers=dv_centers,
     )
     make_projected_map(y, z, projected_v, map_out)
-    make_kurtosis_plot(pdf, dv_bins, log_centers, kk_pdf, kurt_out, args.x_min, args.x_max)
+    make_kurtosis_plot(pdf, dv_bins, log_centers, kk_pairs, kurt_out, args.x_min, args.x_max)
     make_kurtosis_with_gaussian_slices_plot(
         pdf,
         dv_bins,
         log_centers,
-        kk_pdf,
+        kk_pairs,
         slices_out,
         args.x_min,
         args.x_max,
         args.n_slices,
     )
 
-    finite = kk_pdf[np.isfinite(kk_pdf) & (kk_pdf > 0)]
+    finite = kk_pairs[np.isfinite(kk_pairs) & (kk_pairs > 0)]
     print(f"Wrote {npz_out.relative_to(REPO_ROOT)}")
     print(f"Wrote {map_out.relative_to(REPO_ROOT)}")
     print(f"Wrote {kurt_out.relative_to(REPO_ROOT)}")

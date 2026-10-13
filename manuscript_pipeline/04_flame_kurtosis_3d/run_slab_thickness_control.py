@@ -137,7 +137,7 @@ def write_slab_npz(
         pdf=pdf,
         dv_bins=dv_bins,
         log_centers=log_centers,
-        kk=kk_pdf,
+        kk=kk_pairs,
         kk_pdf=kk_pdf,
         kk_pairs=kk_pairs,
         c2=c2,
@@ -147,7 +147,7 @@ def write_slab_npz(
     )
 
     valid_counts = slab_counts[slab_counts > 0]
-    finite = kk_pdf[np.isfinite(kk_pdf) & (kk_pdf > 0)]
+    finite = kk_pairs[np.isfinite(kk_pairs) & (kk_pairs > 0)]
     return {
         "n_proj_pixels": int(v_flat.size),
         "path_length_min": int(np.min(valid_counts)),

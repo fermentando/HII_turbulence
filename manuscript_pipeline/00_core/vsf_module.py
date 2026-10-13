@@ -5,6 +5,7 @@ Contains the VSF2D class for computing 2D velocity structure functions
 and related statistics (PDF, C2, C4, intermittency).
 """
 
+import itertools
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import griddata
@@ -16,6 +17,283 @@ import os
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 from matplotlib.patches import Rectangle, Circle
+
+
+# Emission-line colours used in every figure (keys in both cases for convenience).
+LINE_COLORS = {'NII': '#8f2d56', 'SII': '#d81159', 'SIII': '#f79a2f',
+               'nii': '#8f2d56', 'sii': '#d81159', 'siii': '#f79a2f'}
+# Display names: these are forbidden lines, so they are written in brackets.
+LINE_LABELS = {'NII': '[NII]', 'SII': '[SII]', 'SIII': '[SIII]', 'nii': '[NII]', 'sii': '[SII]', 'siii': '[SIII]'}
+
+
+# Single source of truth for region distances: the LVM HII-region catalogue
+# (Catalogue_HII_regions_LVM_v4.xlsx, repo root), column "Heliocentric distance (kpc)".
+_HII_CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..',
+                            'Catalogue_HII_regions_LVM_v4.xlsx')
+_DISTANCE_TABLE = None
+
+
+def _norm_region_name(name):
+    return ''.join(ch for ch in str(name).lower() if ch.isalnum())
+
+
+def _load_distance_table():
+    """{normalised name or alias: (catalogue Name, distance [pc])}."""
+    global _DISTANCE_TABLE
+    if _DISTANCE_TABLE is None:
+        import pandas as pd
+        df = pd.read_excel(_HII_CATALOG)
+        dist_col = next(c for c in df.columns if str(c).startswith('Heliocentric distance'))
+        table = {}
+        for _, row in df.iterrows():
+            aliases = [row['Name']]
+            if isinstance(row['Other Names'], str):
+                aliases += row['Other Names'].replace(',', '/').split('/')
+            for alias in aliases:
+                key = _norm_region_name(alias)
+                if key:
+                    table.setdefault(key, []).append((row['Name'], row[dist_col]))
+        _DISTANCE_TABLE = table
+    return _DISTANCE_TABLE
+
+
+def get_heliocentric_distance(filename):
+    """Heliocentric distance [pc] for an LVM_<region>.fits file or region name.
+
+    Looks the region up (by catalogue Name or any of its Other Names, ignoring
+    case/spaces/punctuation, with a trailing '_nebula' dropped) in
+    Catalogue_HII_regions_LVM_v4.xlsx. Raises if the region is missing,
+    ambiguous, or has no distance -- never falls back to a default.
+    """
+    object_name = os.path.splitext(os.path.basename(str(filename)))[0]
+    if object_name.startswith('LVM_'):
+        object_name = object_name[len('LVM_'):]
+    if object_name.endswith('_nebula'):
+        object_name = object_name[:-len('_nebula')]
+    hits = {name: dist for name, dist in _load_distance_table().get(_norm_region_name(object_name), [])}
+    if len(hits) != 1:
+        raise KeyError(f"Region '{object_name}' matched {sorted(hits) or 'nothing'} in {_HII_CATALOG}")
+    (cat_name, dist_kpc), = hits.items()
+    if not np.isfinite(dist_kpc):
+        raise ValueError(f"No heliocentric distance for '{object_name}' ({cat_name}) in {_HII_CATALOG}")
+    return round(float(dist_kpc) * 1e3, 1)
+
+
+def get_hii_radius_pc(filename):
+    """HII-region radius [pc] for an LVM_<region>.fits file or region name.
+
+    Catalogue 'Radius (arcmin)' of the same entry get_heliocentric_distance()
+    matches, converted at that catalogue distance: R = d * radius_angle.
+    """
+    import pandas as pd
+    dist_pc = get_heliocentric_distance(filename)
+    object_name = os.path.splitext(os.path.basename(str(filename)))[0]
+    if object_name.startswith('LVM_'):
+        object_name = object_name[len('LVM_'):]
+    if object_name.endswith('_nebula'):
+        object_name = object_name[:-len('_nebula')]
+    (cat_name, _), = {n: d for n, d in _load_distance_table()[_norm_region_name(object_name)]}.items()
+    df = pd.read_excel(_HII_CATALOG)
+    radius_col = next(c for c in df.columns if str(c).startswith('Radius'))
+    radius_arcmin = float(df.loc[df['Name'] == cat_name, radius_col].iloc[0])
+    if not np.isfinite(radius_arcmin) or radius_arcmin <= 0:
+        raise ValueError(f"No radius for '{object_name}' ({cat_name}) in {_HII_CATALOG}")
+    return dist_pc * np.deg2rad(radius_arcmin / 60.0)
+
+
+def get_hii_center_and_radius(filename):
+    """(ra_deg, dec_deg, radius_deg) of the HII region from the LVM catalogue.
+
+    Centre from the catalogue 'Galactic l/b (deg)' converted to ICRS, radius from
+    'Radius (arcmin)'; same catalogue entry as get_heliocentric_distance().
+    """
+    import pandas as pd
+    from astropy.coordinates import SkyCoord
+    object_name = os.path.splitext(os.path.basename(str(filename)))[0]
+    if object_name.startswith('LVM_'):
+        object_name = object_name[len('LVM_'):]
+    if object_name.endswith('_nebula'):
+        object_name = object_name[:-len('_nebula')]
+    (cat_name, _), = {n: d for n, d in _load_distance_table()[_norm_region_name(object_name)]}.items()
+    df = pd.read_excel(_HII_CATALOG)
+    row = df.loc[df['Name'] == cat_name].iloc[0]
+    col = lambda prefix: next(c for c in df.columns if str(c).startswith(prefix))
+    icrs = SkyCoord(l=float(row[col('Galactic l')]) * u.deg, b=float(row[col('Galactic b')]) * u.deg,
+                    frame='galactic').icrs
+    return float(icrs.ra.deg), float(icrs.dec.deg), float(row[col('Radius')]) / 60.0
+
+
+def kurtosis_block_jackknife(x, y, vel, bin_edges, n_blocks_per_side=5, min_block_points=20,
+                             max_points=10000, seed=0, chunk=500):
+    """Kurtosis K = <dv^4>/<dv^2>^2 per separation bin with spatial block-jackknife errors.
+
+    The field is split into n_blocks_per_side^2 equal blocks (as for the VSF jackknife).
+    Each pair's dv^2 and dv^4 are accumulated per (bin, block of i), (bin, block of j) and
+    (bin, shared block), so every leave-one-block-out curve follows from one pass over
+    the pairs: removing block b drops all pairs with either fibre in b. Blocks with fewer
+    than `min_block_points` fibres are never left out. Fields with more than `max_points`
+    fibres use one random subsample of that size (seeded), like one VSF chunk.
+
+    Returns K (all pairs), K_err (jackknife), K_replicates (n_rep x nbins), counts.
+    """
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    vel = np.asarray(vel, float)
+    if len(x) > max_points:
+        idx = np.random.default_rng(seed).choice(len(x), size=max_points, replace=False)
+        x, y, vel = x[idx], y[idx], vel[idx]
+    nb = n_blocks_per_side
+    xi = np.clip(np.searchsorted(np.linspace(x.min(), x.max(), nb + 1), x, side='right') - 1, 0, nb - 1)
+    yi = np.clip(np.searchsorted(np.linspace(y.min(), y.max(), nb + 1), y, side='right') - 1, 0, nb - 1)
+    block = xi * nb + yi
+    n_blk = nb * nb
+    nbins = len(bin_edges) - 1
+    edges2 = np.asarray(bin_edges, float) ** 2
+
+    # sums[q][0] = by block of i, [1] = by block of j, [2] = pairs with both fibres in the same block
+    sums = {q: np.zeros((3, nbins * n_blk)) for q in ('n', 's2', 's4')}
+    n = len(x)
+    for start in range(0, n - 1, chunk):
+        i = np.arange(start, min(start + chunk, n - 1))
+        # all pairs (i, j) with j > i
+        jj = np.arange(n)
+        mask = jj[None, :] > i[:, None]
+        ii, jj = np.nonzero(mask)
+        ii = i[ii]
+        dr2 = (x[ii] - x[jj]) ** 2 + (y[ii] - y[jj]) ** 2
+        b = np.searchsorted(edges2, dr2) - 1
+        ok = (b >= 0) & (b < nbins)
+        ii, jj, b = ii[ok], jj[ok], b[ok]
+        dv2 = (vel[ii] - vel[jj]) ** 2
+        dv4 = dv2 ** 2
+        bi, bj = block[ii], block[jj]
+        for k, blk in ((0, bi), (1, bj)):
+            key = b * n_blk + blk
+            sums['n'][k] += np.bincount(key, minlength=nbins * n_blk)
+            sums['s2'][k] += np.bincount(key, weights=dv2, minlength=nbins * n_blk)
+            sums['s4'][k] += np.bincount(key, weights=dv4, minlength=nbins * n_blk)
+        same = bi == bj
+        key = b[same] * n_blk + bi[same]
+        sums['n'][2] += np.bincount(key, minlength=nbins * n_blk)
+        sums['s2'][2] += np.bincount(key, weights=dv2[same], minlength=nbins * n_blk)
+        sums['s4'][2] += np.bincount(key, weights=dv4[same], minlength=nbins * n_blk)
+
+    S = {q: v.reshape(3, nbins, n_blk) for q, v in sums.items()}
+    tot = {q: S[q][0].sum(axis=1) for q in S}
+
+    def kurt(nn, s2, s4):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return np.where(nn > 0, (s4 / nn) / (s2 / nn) ** 2, np.nan)
+
+    K = kurt(tot['n'], tot['s2'], tot['s4'])
+    eligible = [blk for blk in range(n_blk) if np.count_nonzero(block == blk) >= min_block_points]
+    reps = []
+    for blk in eligible:
+        left = {q: tot[q] - S[q][0][:, blk] - S[q][1][:, blk] + S[q][2][:, blk] for q in S}
+        reps.append(kurt(left['n'], left['s2'], left['s4']))
+    reps = np.array(reps)
+    n_rep = reps.shape[0]
+    with np.errstate(invalid='ignore'):
+        K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+    return K, K_err, reps, tot['n']
+
+
+def flag_overlap_fibres(ra, dec, dist, tol=0.05):
+    """Boolean mask of fibres in tile-overlap regions.
+
+    Overlapping pointings put a second, offset hex fibre lattice on top of the
+    first. Pairs between the two land at off-lattice separations (between the
+    a, sqrt(3)a, 2a shells), form sparse noisy bins at small lag, and carry an
+    inter-pointing velocity offset. A fibre is flagged if ANY neighbour within
+    2.2a sits further than `tol` (fractional) from every lattice shell.
+    Pass ALL fibres (before any S/N cut), so a fibre is flagged even if its
+    overlapping partner fails S/N.
+    """
+    v = VSF2D(ra, dec, np.zeros(len(ra)), dist=dist)
+    xy = np.column_stack((v.x_physical, v.y_physical))
+    tree = cKDTree(xy)
+    a = np.median(tree.query(xy, 2)[0][:, 1])
+    pairs = tree.query_pairs(2.2 * a, output_type='ndarray')
+    q = np.linalg.norm(xy[pairs[:, 0]] - xy[pairs[:, 1]], axis=1) / a
+    on_lattice = np.zeros(len(q), dtype=bool)
+    for shell in (1.0, np.sqrt(3.0), 2.0):
+        on_lattice |= np.abs(q - shell) < tol * shell
+    overlap = np.zeros(len(xy), dtype=bool)
+    overlap[np.unique(pairs[~on_lattice])] = True
+    return overlap
+
+
+def load_line_data(filename, line, snr_min=5.0, drop_overlap=True, clip_sigma=10.0,
+                   dist=None, subtract_gradient=False, verbose=True):
+    """Load one emission line from an LVM_<region>.fits table with the standard cuts.
+
+    In order: (1) flux S/N > snr_min; (2) if drop_overlap, remove tile-overlap
+    fibres (flag_overlap_fibres, evaluated on all fibres); (3) if clip_sigma > 0,
+    remove velocity outliers with |v - median| > clip_sigma * 1.4826 * MAD of the
+    surviving fibres (failed line fits barely move S_1 but dominate S_2);
+    (4) if subtract_gradient, fit and subtract a plane v = v0 + b x + c y
+    (physical coordinates) from the remaining velocities; 'gradient' in the
+    returned dict holds (v0, b, c) [km/s, km/s/pc], NaN when not applied.
+
+    Returns a dict with ra, dec, flux, vel, vel_err (selected fibres), dist [pc]
+    (catalogue value unless given), and diagnostic counts.
+    """
+    from astropy.io import fits
+    if dist is None:
+        dist = get_heliocentric_distance(filename)
+    with fits.open(filename) as hdul:
+        t = hdul[1].data
+        ra_all = np.asarray(t['ra'], dtype=float)
+        dec_all = np.asarray(t['dec'], dtype=float)
+        flux = np.asarray(t[f'flux_{line}'], dtype=float)
+        flux_err = np.asarray(t[f'flux_{line}_err'], dtype=float)
+        vel = np.asarray(t[f'vel_{line}'], dtype=float)
+        vel_err = np.asarray(t[f'vel_{line}_err'], dtype=float)
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        mask = np.isfinite(vel) & (flux / flux_err > snr_min)
+    n_snr = int(mask.sum())
+
+    n_overlap = 0
+    if drop_overlap:
+        overlap = flag_overlap_fibres(ra_all, dec_all, dist)
+        n_overlap = int((mask & overlap).sum())
+        mask &= ~overlap
+
+    clipped = np.array([])
+    if clip_sigma and clip_sigma > 0 and mask.any():
+        med = np.median(vel[mask])
+        sig = 1.4826 * np.median(np.abs(vel[mask] - med))
+        outlier = mask & (np.abs(vel - med) > clip_sigma * sig)
+        clipped = vel[outlier]
+        mask &= ~outlier
+
+    vel_sel = vel[mask]
+    gradient = np.full(3, np.nan)  # (v0 [km/s], dv/dx, dv/dy [km/s/pc])
+    if subtract_gradient and mask.sum() >= 3:
+        # (4) Remove a large-scale linear velocity gradient (bulk rotation/flow
+        # across the field): least-squares plane v = v0 + b x + c y on the
+        # selected fibres, in physical coordinates. S_p only sees velocity
+        # differences, so this removes the b*dx + c*dy term that otherwise
+        # makes sqrt(S_2) grow ~ |grad v| * l / sqrt(2) at large lags.
+        v = VSF2D(ra_all[mask], dec_all[mask], vel_sel, dist=dist)
+        A = np.column_stack((np.ones(len(vel_sel)), v.x_physical, v.y_physical))
+        gradient, *_ = np.linalg.lstsq(A, vel_sel, rcond=None)
+        vel_sel = vel_sel - A[:, 1:] @ gradient[1:]
+
+    if verbose:
+        grad_txt = (f"; gradient {np.hypot(*gradient[1:]):.3f} km/s/pc removed"
+                    if subtract_gradient else "")
+        print(f"    {line.upper()}: {n_snr:,} fibres with S/N > {snr_min:g}; "
+              f"-{n_overlap} overlap; -{len(clipped)} velocity outlier(s) "
+              f"{np.round(clipped, 1).tolist() if len(clipped) else ''} -> {int(mask.sum()):,} used{grad_txt}")
+
+    return {
+        'ra': ra_all[mask], 'dec': dec_all[mask], 'flux': flux[mask], 'flux_err': flux_err[mask],
+        'vel': vel_sel, 'vel_err': vel_err[mask], 'dist': dist,
+        'n_snr': n_snr, 'n_overlap_dropped': n_overlap, 'clipped_velocities': clipped,
+        'gradient': gradient,
+    }
 
 
 # ============================================================================
@@ -863,6 +1141,11 @@ def spatial_bin_edges(x_data, y_data, bin_resolution=80, binning="equal_width",
     return log_centers, bin_edges, r_min, r_max
 
 
+def folded_dv_bins(vel_data, n_edges=80):
+    """Bin edges for the folded PDF of |dv|: 0 to the largest possible pair difference."""
+    return np.linspace(0.0, np.nanmax(vel_data) - np.nanmin(vel_data), n_edges)
+
+
 def compute_bins(x_data, y_data, vel_data, bin_resolution=80, binning="equal_width",
                   min_pairs_per_bin=2000, max_pairs_for_equal_count=500_000, seed=0,
                   min_separation=None):
@@ -936,7 +1219,7 @@ def compute_bins(x_data, y_data, vel_data, bin_resolution=80, binning="equal_wid
     bin_edges : array
         Spatial bin edges (linear space)
     dv_bins : array
-        Velocity difference bin edges
+        Bin edges for |dv| = sqrt(dv^2), 0 to max(vel) - min(vel) (folded_dv_bins)
     dict : dict
         Dictionary containing all computed bins
     """
@@ -951,10 +1234,8 @@ def compute_bins(x_data, y_data, vel_data, bin_resolution=80, binning="equal_wid
         min_separation=min_separation,
     )
 
-    # Compute velocity bins
-    dv_min = np.nanmin(vel_data) - np.mean(vel_data)
-    dv_max = np.nanmax(vel_data) - np.mean(vel_data)
-    dv_bins = np.linspace(dv_min, dv_max, 80)
+    # Velocity bins for the folded PDF of |dv|, covering every possible pair difference
+    dv_bins = folded_dv_bins(vel_data)
 
     bins_dict = {
         'log_centers': log_centers,
@@ -969,7 +1250,7 @@ def compute_bins(x_data, y_data, vel_data, bin_resolution=80, binning="equal_wid
 
 
 def compute_pdf_and_statistics_chunk(x, y, vel, vel_err, bin_edges, dv_bins, 
-                                     seed, order):
+                                     seed, order, fold=True):
     """
     Compute PDF, C2, C4, and counts for a chunk of data.
     
@@ -992,6 +1273,10 @@ def compute_pdf_and_statistics_chunk(x, y, vel, vel_err, bin_edges, dv_bins,
         Random seed for reproducibility
     order : int
         Order of structure function (1, 2, 4, etc.)
+    fold : bool
+        If True (default), histogram |dv| = sqrt(dv^2) instead of the signed dv
+        (dv_bins should then start at 0, see folded_dv_bins). Pairs are unordered,
+        so the sign of dv carries no information.
     
     Returns
     -------
@@ -1056,7 +1341,7 @@ def compute_pdf_and_statistics_chunk(x, y, vel, vel_err, bin_edges, dv_bins,
     np.add.at(cnt_r, r_i, 1)
     
     # --- PDF (KEEP dv_bins) ---
-    dv_idx = np.digitize(dv, dv_bins) - 1
+    dv_idx = np.digitize(np.abs(dv) if fold else dv, dv_bins) - 1
     valid_dv = (dv_idx >= 0) & (dv_idx < ndv)
     
     valid = valid_r & valid_dv
@@ -1070,7 +1355,7 @@ def compute_pdf_and_statistics_chunk(x, y, vel, vel_err, bin_edges, dv_bins,
 
 def compute_pdf_and_statistics(x_data, y_data, vel_data, vel_err_data, 
                                log_centers, bin_edges, dv_bins, order=2, 
-                               n_jobs=8):
+                               n_jobs=8, fold=True):
     """
     Compute PDF, C2, C4, and counts independently.
     
@@ -1095,6 +1380,10 @@ def compute_pdf_and_statistics(x_data, y_data, vel_data, vel_err_data,
         Order of computation
     n_jobs : int
         Number of parallel jobs
+    fold : bool
+        If True (default), the PDF is of |dv| = sqrt(dv^2) (see
+        compute_pdf_and_statistics_chunk). C2, C4 and kk use even powers only,
+        so they do not depend on it.
     
     Returns
     -------
@@ -1107,7 +1396,7 @@ def compute_pdf_and_statistics(x_data, y_data, vel_data, vel_err_data,
     dv_centers : array
         Velocity bin centers
     kk : array
-        Kurtosis (intermittency parameter)
+        Kurtosis <dv^4> / <dv^2>^2 over all pairs (intermittency parameter)
     """
     nbins = len(bin_edges) - 1
     
@@ -1121,7 +1410,7 @@ def compute_pdf_and_statistics(x_data, y_data, vel_data, vel_err_data,
     results = Parallel(n_jobs=n_jobs)(
         delayed(compute_pdf_and_statistics_chunk)(
             x_data, y_data, vel_data, vel_err_data,
-            bin_edges, dv_bins, seed, order
+            bin_edges, dv_bins, seed, order, fold
         ) for seed in seeds
     )
     
@@ -1134,9 +1423,9 @@ def compute_pdf_and_statistics(x_data, y_data, vel_data, vel_err_data,
     
     # --- INTERMITTENCY ---
     kk = np.divide(
-        c4_all / cnt_all,
-        (c2_all / cnt_all)**2,
-        out=np.zeros_like(c4_all),
+        c4_all * cnt_all,
+        c2_all**2,
+        out=np.full_like(c4_all, np.nan),
         where=c2_all > 0
     )
     
@@ -1386,8 +1675,15 @@ class VSF2D:
         sample_size_per_chunk=10000,
         max_n_jobs_per_replicate=8,
         n_jobs=3,
+        delete_d=1,
     ):
         """Spatial block-jackknife VSF error ('cosmic variance' style).
+
+        delete_d > 1 gives the delete-d jackknife: every combination of d
+        eligible blocks is left out together (C(n, d) replicates instead of n)
+        and the variance is (n - d) / (d * N) * sum (theta_S - mean)^2. Same
+        block size and estimator family as delete-1, but enough replicates for
+        a full-rank bin-to-bin covariance.
 
         Tiles the FOV into an n_blocks_per_side x n_blocks_per_side grid of
         spatial blocks and recomputes the VSF with each block held out in
@@ -1440,13 +1736,15 @@ class VSF2D:
         # ALL of it across cores at once, rather than only parallelizing
         # within one replicate at a time (leave-one-out blocks have no
         # dependency on each other, so there's no reason not to).
-        work_items = []  # (block_id, xk, yk, velk, zk, seed)
-        for block in np.unique(block_idx):
-            held_out = block_idx == block
-            if np.count_nonzero(held_out) < min_block_points:
-                # Block too small to move the statistic; skip leaving it out
-                # rather than wasting a near-duplicate replicate.
-                continue
+        work_items = []  # (block_group, xk, yk, velk, zk, seed)
+        # Blocks too small to move the statistic are never left out (rather
+        # than wasting near-duplicate replicates).
+        eligible = [b for b in np.unique(block_idx)
+                    if np.count_nonzero(block_idx == b) >= min_block_points]
+        self.last_jackknife_delete_d = int(delete_d)
+        self.last_jackknife_n_blocks_used = len(eligible)
+        for block in itertools.combinations(eligible, int(delete_d)):
+            held_out = np.isin(block_idx, block)
             keep = ~held_out
             n_keep = np.count_nonzero(keep)
             if n_keep < 2:
@@ -1456,6 +1754,9 @@ class VSF2D:
             for seed in range(n_jobs_rep):
                 work_items.append((block, xk, yk, velk, zk, seed))
 
+        # Leave-one-block-out curves (n_replicates x nbins), kept so callers can
+        # build the full jackknife covariance between bins, not just its diagonal.
+        self.last_jackknife_replicates = np.empty((0, nbins))
         if not work_items:
             return np.full(nbins, np.nan), np.zeros(nbins, dtype=int)
 
@@ -1480,11 +1781,16 @@ class VSF2D:
             return np.full(nbins, np.nan), np.zeros(nbins, dtype=int)
 
         replicate_means = np.array(replicate_means)
+        self.last_jackknife_replicates = replicate_means
         n_valid = np.sum(np.isfinite(replicate_means), axis=0)
         jack_mean = np.nanmean(replicate_means, axis=0)
         sq_dev = (replicate_means - jack_mean)**2
         with np.errstate(invalid='ignore'):
-            var = np.nansum(sq_dev, axis=0) * (n_valid - 1) / np.maximum(n_valid, 1)
+            if delete_d == 1:
+                var = np.nansum(sq_dev, axis=0) * (n_valid - 1) / np.maximum(n_valid, 1)
+            else:
+                n_el = len(eligible)
+                var = np.nansum(sq_dev, axis=0) * (n_el - delete_d) / (delete_d * np.maximum(n_valid, 1))
         err = np.sqrt(var)
         err = np.where(n_valid >= min_valid_blocks, err, np.nan)
         return err, n_valid
@@ -1495,6 +1801,7 @@ class VSF2D:
                        jackknife_n_blocks_per_side=5, jackknife_min_block_points=20,
                        jackknife_min_valid_blocks=4, jackknife_sample_size_per_chunk=10000,
                        jackknife_max_n_jobs_per_replicate=8, jackknife_n_jobs=3,
+                       jackknife_delete_d=1,
                        min_separation=None, binning='equal_width',
                        shell_transition_factor=10.0, shell_fine_per_bin=25,
                        shell_smooth_sigma=3.0, shell_prominence_frac=0.05,
@@ -1662,6 +1969,7 @@ class VSF2D:
                     sample_size_per_chunk=jackknife_sample_size_per_chunk,
                     max_n_jobs_per_replicate=jackknife_max_n_jobs_per_replicate,
                     n_jobs=jackknife_n_jobs,
+                    delete_d=jackknife_delete_d,
                 )
                 err = jackknife_err
             else:
@@ -1692,6 +2000,10 @@ class VSF2D:
             vsf_jackknife_err=vsf_jackknife_err,
             jackknife_n_valid_blocks=jackknife_n_valid,
             jackknife_n_blocks_per_side=jackknife_n_blocks_per_side,
+            jackknife_replicates=(self.last_jackknife_replicates if error_mode == 'block_jackknife'
+                                  else np.empty((0, len(log_centers)))),
+            jackknife_delete_d=jackknife_delete_d,
+            jackknife_n_blocks_used=getattr(self, 'last_jackknife_n_blocks_used', -1),
             error_mode=error_mode,
             min_separation=min_separation,
             binning=binning,
