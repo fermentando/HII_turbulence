@@ -9,18 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from matplotlib.lines import Line2D
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import binary_closing, binary_fill_holes, gaussian_filter
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = REPO_ROOT / "Figures/manuscript/01_summary_regions"
 OUTPUT_PATH = OUTPUT_DIR / "three_line_false_color_dark_additive_all_regions.png"
 RASTER_OUTPUT_PATH = OUTPUT_DIR / "three_line_false_color_dark_additive_all_regions_rasterized.png"
-PALETTE = {
-    "siii": np.array([1.25, 0.22, 0.06]),  # bright red/orange: higher ionization
-    "nii": np.array([0.10, 0.85, 0.25]),  # green: intermediate ionization
-    "sii": np.array([0.15, 0.35, 1.35]),  # bright blue: lower ionization
-}
 
 
 def stretched_channel(flux, flux_err, snr_min=5.0, pmin=2.0, pmax=99.0, softening=0.08):
@@ -41,42 +36,60 @@ def stretched_channel(flux, flux_err, snr_min=5.0, pmin=2.0, pmax=99.0, softenin
     return channel, good
 
 
-def saturation_boost(rgb, amount=1.4):
-    """Increase color separation while keeping total brightness recognizable."""
+def saturation_boost(rgb, amount=1.4, weight=None):
+    """Increase color separation while keeping total brightness recognizable.
+
+    `weight` (0-1 per pixel), when given, scales the boost so faint pixels
+    stay closer to gray/black and only bright pixels get the full color
+    push -- otherwise faint, noisy background gets boosted to the same
+    vivid saturation as real bright nebulosity, washing every panel in a
+    uniform colored haze regardless of actual signal strength.
+    """
     rgb = np.clip(rgb, 0, 1)
     gray = np.mean(rgb, axis=1, keepdims=True)
-    return np.clip(gray + amount * (rgb - gray), 0, 1)
+    effective = amount if weight is None else 1.0 + (amount - 1.0) * weight[:, None]
+    return np.clip(gray + effective * (rgb - gray), 0, 1)
 
 
 def dark_additive_rgb(
     sii,
     nii,
     siii,
-    gamma=1.08,
-    brightness=1.45,
-    saturation=1.90,
-    shoulder=0.70,
-    black_point=0.10,
-    contrast=1.45,
-    white_limit=0.86,
+    intensity_softening=0.22,
+    saturation=2.8,
+    gamma_lum=0.75,
+    white_pctl=98.5,
 ):
-    """Mix channels additively so low surface-brightness regions remain dark."""
-    rgb = (
-        sii[:, None] * PALETTE["sii"]
-        + nii[:, None] * PALETTE["nii"]
-        + siii[:, None] * PALETTE["siii"]
-    )
-    rgb = rgb / 1.7
-    rgb = rgb / (rgb + shoulder)
-    rgb = brightness * rgb**gamma
-    rgb = np.clip((rgb - black_point) / max(1.0 - black_point, 1e-12), 0, 1)
-    rgb = np.clip(0.5 + contrast * (rgb - 0.5), 0, 1)
-    rgb = saturation_boost(rgb, amount=saturation)
+    """Separate brightness (total flux) from color (line ratios).
 
-    peak = np.max(rgb, axis=1)
-    bright = peak > white_limit
-    rgb[bright] *= (white_limit / peak[bright])[:, None]
-    return np.clip(rgb, 0, 1)
+    HII region cores are typically bright in SII, NII, and SIII all at
+    once -- a straight additive RGB mix (sii*blue + nii*green + siii*red)
+    washes those cores to pale white/pink no matter how the tone curve is
+    tuned, since "bright in all three channels" literally *is* white.
+    Normalizing each pixel's color by its own total flux (so color encodes
+    only the *relative* line ratios) and using the total flux separately,
+    asinh-stretched, for brightness keeps real color structure visible
+    even in bright cores -- the standard astrophotography "luminance +
+    chrominance" split.
+    """
+    channels = np.column_stack([siii, nii, sii])  # R=SIII, G=NII, B=SII
+    total = np.sum(channels, axis=1)
+
+    intensity = np.zeros_like(total)
+    positive = total > 0
+    if np.any(positive):
+        hi = np.nanpercentile(total[positive], white_pctl)
+        scaled = np.clip(total[positive] / max(hi, 1e-12), 0, 1)
+        intensity[positive] = (
+            np.arcsinh(scaled / intensity_softening) / np.arcsinh(1.0 / intensity_softening)
+        ) ** gamma_lum
+
+    color = np.zeros_like(channels)
+    color[positive] = channels[positive] / total[positive, None]
+    color *= 3.0  # so a pixel with exactly 1/3-1/3-1/3 ratio stays unsaturated gray
+
+    rgb = np.clip(color * intensity[:, None], 0, 1)
+    return saturation_boost(rgb, amount=saturation, weight=intensity)
 
 
 def tighten_sky_axes(ax, ra_values, dec_values, pad_fraction=0.015):
@@ -115,8 +128,26 @@ def load_region_rgb(fits_path):
     return region_name, ra[visible], dec[visible], rgb
 
 
-def rasterize_rgb_image(ra, dec, rgb, n_pix=520, smooth_sigma=1.8, min_weight=0.03):
-    """Rasterize irregular RGB spaxels to a smoothed image grid."""
+def rasterize_rgb_image(ra, dec, rgb, n_pix=900, smooth_sigma_deg=0.007, min_fiber_weight=0.35):
+    """Rasterize irregular RGB spaxels to a smoothed image grid.
+
+    smooth_sigma is specified in ANGULAR units (degrees on sky), not raster
+    pixels, and converted to pixels internally. This matters: at n_pix~900
+    over a ~1-2 deg field, each pixel is far smaller than the ~0.0103 deg
+    fiber pitch, so a fixed *pixel* sigma (e.g. the old default of 1.8 px)
+    is narrower than the gap between fibers and never actually averages
+    neighboring fibers together -- every cell just reflects 0 or 1 raw
+    fiber, producing a speckled, noise-dominated image (this was especially
+    bad for Flame, whose real footprint is a thin 3-armed "tripod" that the
+    old under-smoothed rasterization turned into a noisy false hexagon).
+    Tying sigma to a physical angular scale (~0.7x the fiber pitch) fixes
+    this for every region regardless of its angular size or point density.
+
+    Low-SNR fibers (masked to 0 in every channel by stretched_channel) and
+    the sparse raster grid both leave small gaps -- binary_closing +
+    binary_fill_holes patches those into the surrounding footprint instead
+    of leaving visible black holes/pinholes punched through nebulosity.
+    """
     ra_min, ra_max = float(np.nanmin(ra)), float(np.nanmax(ra))
     dec_min, dec_max = float(np.nanmin(dec)), float(np.nanmax(dec))
     ra_span = max(ra_max - ra_min, 1e-12)
@@ -126,10 +157,27 @@ def rasterize_rgb_image(ra, dec, rgb, n_pix=520, smooth_sigma=1.8, min_weight=0.
     n_dec = max(100, int(round(n_pix * dec_span / ra_span)))
     ra_edges = np.linspace(ra_min, ra_max, n_ra + 1)
     dec_edges = np.linspace(dec_min, dec_max, n_dec + 1)
+    smooth_sigma = smooth_sigma_deg / (ra_span / n_ra)
 
     image = np.zeros((n_dec, n_ra, 4), dtype=float)
     counts, _, _ = np.histogram2d(dec, ra, bins=[dec_edges, ra_edges])
     smooth_counts = gaussian_filter(counts, smooth_sigma, mode="constant", cval=0.0)
+    # A lone fiber's own smoothed peak is 1/(2*pi*sigma^2) (2D Gaussian kernel
+    # normalized to unit integral) -- thresholding at a FIXED absolute count
+    # (the old min_weight=0.03) only worked by accident at the old fixed
+    # pixel-sigma=1.8; with sigma now set per-region in angular units, a
+    # bigger region/finer n_pix gives a wider sigma_pix, which dilutes the
+    # peak and pushes it below a fixed threshold -- emptying the footprint
+    # entirely for larger regions (this silently deleted BFS65 and
+    # shrank Gum31/RCW52/RCW79/Sh2-311 to thin slivers). Scaling the
+    # threshold by the kernel's own peak keeps "at least ~0.35 fibers'
+    # worth of local density" meaningful regardless of sigma_pix.
+    min_weight = min_fiber_weight / (2.0 * np.pi * smooth_sigma**2)
+    footprint = smooth_counts > min_weight
+    close_size = max(3, int(round(5 * n_pix / 640)))
+    if close_size % 2 == 0:
+        close_size += 1
+    footprint = binary_fill_holes(binary_closing(footprint, structure=np.ones((close_size, close_size))))
 
     for channel in range(3):
         weighted_sum, _, _ = np.histogram2d(dec, ra, bins=[dec_edges, ra_edges], weights=rgb[:, channel])
@@ -139,11 +187,11 @@ def rasterize_rgb_image(ra, dec, rgb, n_pix=520, smooth_sigma=1.8, min_weight=0.
                 smooth_sum,
                 smooth_counts,
                 out=np.zeros_like(smooth_sum),
-                where=smooth_counts > min_weight,
+                where=smooth_counts > 1e-8,
             )
         image[..., channel] = np.clip(values, 0, 1)
 
-    image[..., 3] = (smooth_counts > min_weight).astype(float)
+    image[..., 3] = footprint.astype(float)
     extent = [ra_max, ra_min, dec_min, dec_max]
     return image, extent
 
@@ -163,53 +211,45 @@ def main():
     fig, axes = plt.subplots(
         n_rows,
         n_cols,
-        figsize=(3.9 * n_cols, 3.7 * n_rows),
+        figsize=(4.4 * n_cols, 4.1 * n_rows),
         constrained_layout=True,
         squeeze=False,
     )
-    fig.patch.set_facecolor("white")
+    fig.patch.set_facecolor("black")
 
     for ax in axes.ravel():
         ax.set_facecolor("black")
-        ax.tick_params(labelsize=7, length=2.5)
+        ax.set_axis_off()
 
     for idx, (name, ra, dec, rgb) in enumerate(regions):
         ax = axes.ravel()[idx]
         image, extent = rasterize_rgb_image(ra, dec, rgb)
         ax.imshow(image, origin="lower", extent=extent, interpolation="bilinear")
-        ax.set_title(name, fontsize=10, fontweight="bold", pad=3)
-        ax.grid(True, color="white", alpha=0.10, linewidth=0.5)
+        ax.set_title(name, fontsize=13, fontweight="bold", pad=4, color="white")
         tighten_sky_axes(ax, ra, dec)
 
-        row, col = divmod(idx, n_cols)
-        if row == n_rows - 1:
-            ax.set_xlabel("RA (deg)", fontsize=8)
-        if col == 0:
-            ax.set_ylabel("Dec (deg)", fontsize=8)
-
     handles = [
-        Line2D([0], [0], marker="o", color="none", markerfacecolor=np.clip(PALETTE["siii"], 0, 1), markersize=6, label="SIII"),
-        Line2D([0], [0], marker="o", color="none", markerfacecolor=np.clip(PALETTE["nii"], 0, 1), markersize=6, label="NII"),
-        Line2D([0], [0], marker="o", color="none", markerfacecolor=np.clip(PALETTE["sii"], 0, 1), markersize=6, label="SII"),
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=(1.0, 0.1, 0.1), markersize=7, label="SIII"),
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=(0.1, 1.0, 0.1), markersize=7, label="NII"),
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=(0.1, 0.1, 1.0), markersize=7, label="SII"),
     ]
     for idx in range(len(regions), n_rows * n_cols):
         ax = axes.ravel()[idx]
-        ax.set_axis_off()
         if idx == len(regions):
             legend = ax.legend(
                 handles=handles,
                 loc="center",
                 frameon=False,
-                fontsize=11,
+                fontsize=13,
                 title="RGB channels",
-                title_fontsize=12,
+                title_fontsize=14,
             )
             for text in legend.get_texts():
-                text.set_color("black")
-            legend.get_title().set_color("black")
+                text.set_color("white")
+            legend.get_title().set_color("white")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    fig.savefig(RASTER_OUTPUT_PATH, dpi=220, facecolor=fig.get_facecolor())
+    fig.savefig(RASTER_OUTPUT_PATH, dpi=300, facecolor=fig.get_facecolor())
     plt.close(fig)
     print(f"Saved: {RASTER_OUTPUT_PATH}")
 

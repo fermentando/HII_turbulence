@@ -1,0 +1,31 @@
+region,line,n_fibres,radius_scale_s,L_out_over_rhii,n_bins,l_min,l_max,n_jackknife,shrinkage,best_delta,best_lambda,chi2_min,dof,delta_1sig_lo,delta_1sig_hi,lambda_1sig_lo,lambda_1sig_hi,flags
+BFS65,NII,3797,1,8.3377,6,0.12195,0.67425,21,0.38565,1,0.82408,7.019,4,0.13485,1,0.63221,1.0742,"flux radius poorly determined (s=1.80 [0.71,2.50]): catalogue radius; Delta 1-sigma hits grid edge"
+BFS65,SII,2306,1,8.1773,6,0.12195,0.67425,19,0.3152,1,0.30501,3.3133,4,0.41046,1,0.19181,1.7081,"flux radius poorly determined (s=1.84 [1.76,1.95]): catalogue radius; Delta 1-sigma hits grid edge"
+BFS65,SIII,1100,0.83944,6.5457,6,0.14527,0.80322,12,0.24846,0.16114,0.94086,10.874,4,0.005,0.3435,0.7218,1.2264,Delta 1-sigma hits grid edge
+Flame_nebula,NII,4533,1,1.6696,10,0.024685,0.66617,21,0.64479,0.0068285,1.9502,7.4874,8,0.005,0.069154,1.4002,3.1011,"flux radius poorly determined (s=1.84 [0.43,2.50]): catalogue radius; Delta 1-sigma hits grid edge"
+Flame_nebula,SII,4031,1,1.6677,10,0.024685,0.66617,21,0.21251,0.0059747,1.2264,19.359,8,0.005,0.082635,0.94086,1.8251,"flux radius poorly determined (s=2.40 [0.40,2.50]): catalogue radius; Delta 1-sigma hits grid edge"
+Flame_nebula,SIII,1826,0.68323,1.9139,10,0.03613,0.97503,15,0.50558,0.019879,1.0742,11.423,8,0.005,0.12336,0.77125,1.7081,Delta 1-sigma hits grid edge
+Gum31,NII,4541,1,3.1234,8,0.046586,0.66186,21,0.10711,0.019879,1.5986,42.627,6,0.005,0.090331,1.2264,1.9502,"flux radius poorly determined (s=0.73 [0.71,1.14]): catalogue radius; Delta 1-sigma hits grid edge; poor fit"
+Gum31,SII,4287,1,3.1231,8,0.046586,0.66186,21,0.29181,0.019879,1.4961,32.04,6,0.005,0.094443,1.1478,1.9502,"flux radius poorly determined (s=0.71 [0.67,1.07]): catalogue radius; Delta 1-sigma hits grid edge; poor fit"
+Gum31,SIII,1228,0.93047,3.0153,8,0.050067,0.71132,15,0.64731,0.066142,1.9502,4.922,6,0.005,0.12336,1.3104,2.542,Delta 1-sigma hits grid edge
+Gum38a,NII,6532,0.98976,4.7291,8,0.050004,0.67141,20,0.19881,0.019879,1.2264,64.604,6,0.005,0.094443,1.0053,1.4961,Delta 1-sigma hits grid edge; poor fit
+Gum38a,SII,5985,0.93047,5.0117,8,0.05319,0.7142,20,0.29055,0.019879,1.1478,32.983,6,0.005,0.094443,1.0053,1.4002,Delta 1-sigma hits grid edge; poor fit
+Gum38a,SIII,5641,0.96959,4.674,8,0.051044,0.68538,21,0.43257,0.075594,1.2264,33.602,6,0.005,0.14099,0.94086,1.5986,Delta 1-sigma hits grid edge; poor fit
+Orion,NII,368409,1.1199,22.15,9,0.031788,0.59484,21,0.57893,0.46912,0.63221,9.9296,7,0.005,1,0.45392,0.88054,Delta 1-sigma hits grid edge
+Orion,SII,322380,0.96959,26.131,9,0.036717,0.68706,22,0.47673,1,0.77125,16.292,7,0.51281,1,0.34823,1.0053,Delta 1-sigma hits grid edge
+Orion,SIII,7593,1.1199,19.463,10,0.022042,0.59484,6,0.65328,0.14741,0.94086,2.4565,8,0.005,0.26297,0.34823,1.4961,Delta 1-sigma hits grid edge
+RCW52,NII,4340,1.1913,5.2579,7,0.076477,0.5682,21,0.64515,0.019879,1.0742,12.717,5,0.005,0.21049,0.82408,1.4002,Delta 1-sigma hits grid edge
+RCW52,SII,3381,1.2672,4.926,7,0.071896,0.53416,20,0.39737,0.098743,1.0742,8.3205,5,0.005,0.39259,0.67552,1.7081,Delta 1-sigma hits grid edge
+RCW52,SIII,2674,1,5.89,7,0.091105,0.67688,18,0.58467,0.090331,1.0742,9.4645,5,0.005,0.53616,0.67552,1.4961,"flux radius poorly determined (s=1.05 [0.86,1.14]): catalogue radius; Delta 1-sigma hits grid edge"
+RCW60,NII,9116,1.2672,2.3804,10,0.023164,0.53052,23,0.21926,0.30055,0.34823,0.87976,8,0.12336,0.51281,0.03,0.59168,lambda 1-sigma hits grid edge
+RCW60,SII,7080,0.82233,3.65,10,0.035695,0.81751,22,0.36027,0.83686,0.34823,1.5665,8,0.39259,1,0.03,1.8251,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge
+RCW60,SIII,3176,1,2.6144,10,0.029353,0.67227,17,0.66946,1,1.5986,2.6434,8,0.15412,1,0.03,2.379,"flux radius poorly determined (s=0.77 [0.68,1.12]): catalogue radius; Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge"
+RCW79,NII,3673,0.82233,5.0416,8,0.074188,0.81946,21,0.25817,0.16848,1.0053,4.1622,6,0.005,0.28746,0.7218,1.3104,Delta 1-sigma hits grid edge
+RCW79,SII,3021,0.83944,4.9159,8,0.072677,0.80276,22,0.60716,0.83686,0.45392,2.6992,6,0.26297,1,0.25003,0.67552,Delta 1-sigma hits grid edge
+RCW79,SIII,491,1,2.1276,8,0.061007,0.67387,9,0.39868,1,2.379,5.2201,6,0.22007,1,1.8251,7.8413,"flux radius poorly determined (s=1.05 [0.82,1.27]): catalogue radius; Delta 1-sigma hits grid edge"
+Rosette_nebula,NII,19150,1,1.6885,12,0.01063,0.66298,21,0.19104,0.0059747,1.9502,79.469,10,0.005,0.021731,1.8251,2.0838,"flux radius poorly determined (s=0.93 [0.87,2.50]): catalogue radius; Delta 1-sigma hits grid edge; poor fit"
+Rosette_nebula,SII,16507,1,1.6591,12,0.01063,0.66298,23,0.20484,0.0057145,1.9502,62.483,10,0.005,0.02272,1.8251,2.0838,"flux radius poorly determined (s=2.30 [0.47,2.50]): catalogue radius; Delta 1-sigma hits grid edge; poor fit"
+Rosette_nebula,SIII,8592,1,1.1995,12,0.01063,0.66298,22,0.76603,0.0057145,1.2264,17.78,10,0.005,0.072302,0.67552,2.0838,"flux radius poorly determined (s=0.95 [0.82,2.50]): catalogue radius; Delta 1-sigma hits grid edge"
+Sh2-311,NII,2129,0.62921,2.2539,10,0.039232,1.0587,17,0.4523,0.055352,3.1011,4.0409,8,0.005,0.19255,1.8251,11.669,Delta 1-sigma hits grid edge
+Sh2-311,SII,1590,0.62921,2.1348,10,0.039232,1.0587,15,0.73571,0.46912,0.039105,2.2553,8,0.22007,1,0.03,0.63221,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge
+Sh2-311,SIII,598,0.68323,1.7496,10,0.03613,0.97503,7,0.72878,0.37549,300,15.262,8,0.31423,0.44869,5.6299,300,lambda 1-sigma hits grid edge

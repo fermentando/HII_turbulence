@@ -1,0 +1,13 @@
+    SIII: 15,564 fibres with S/N > 20; -6972 overlap; -0 velocity outlier(s)  -> 8,592 used; gradient 0.104 km/s/pc removed
+Rosette_nebula siii: 8,592 fibres, R_HII=31.76 pc, 37" = 0.0088 R_HII, M=3.96, floors [0.011, 0.0155, 0.0219, 0.031, 0.0438, 0.0619, 0.0874, 0.1234]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0110: slope -3.555, 37 bins, l/R_HII 0.027-1.283
+  floor 0.0155: slope -3.547, 40 bins, l/R_HII 0.027-1.281
+  floor 0.0219: slope -3.535, 39 bins, l/R_HII 0.027-1.278
+  floor 0.0310: slope -3.308, 28 bins, l/R_HII 0.032-1.273
+  floor 0.0438: slope -2.911, 14 bins, l/R_HII 0.047-1.267
+  floor 0.0619: slope -0.775, 7 bins, l/R_HII 0.196-1.255
+  floor 0.0874: only 4 bins in the first K>3 run; dropped
+  floor 0.1234: only 3 bins in the first K>3 run; dropped
+Saved Figures/manuscript/08_shell_inference/data/Rosette_nebula_SIII_multifloor.npz (6 floors, 22 jackknife replicates)

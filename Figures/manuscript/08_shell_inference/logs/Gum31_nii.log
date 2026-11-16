@@ -1,0 +1,9 @@
+    NII: 4,949 fibres with S/N > 20; -408 overlap; -0 velocity outlier(s)  -> 4,541 used; gradient 0.117 km/s/pc removed
+Gum31 nii: 4,541 fibres, R_HII=10.94 pc, 37" = 0.0385 R_HII, M=3.37, floors [0.0385, 0.0544, 0.0769, 0.1086]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0385: slope -1.917, 36 bins, l/R_HII 0.044-3.383
+  floor 0.0544: slope -2.043, 37 bins, l/R_HII 0.062-3.380
+  floor 0.0769: slope -1.981, 39 bins, l/R_HII 0.083-3.375
+  floor 0.1086: slope -2.205, 32 bins, l/R_HII 0.116-3.369
+Saved Figures/manuscript/08_shell_inference/data/Gum31_NII_multifloor.npz (4 floors, 21 jackknife replicates)

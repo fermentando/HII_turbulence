@@ -1,0 +1,39 @@
+
+Rosette_nebula nii: 10000 fibres, sigma_loc (200 neighbours) median 1.25 km/s, M=4.23
+  floor   stored   control  normalised
+  0.0110  -5.002   -5.365    -0.424
+  0.0155  -5.005   -5.447    -0.377
+  0.0219  -5.024   -5.333    -0.286
+  0.0310  -4.718   -5.163    -0.075
+  0.0438  -4.765   -4.783    -0.155
+  0.0619  -4.546   -4.139    +nan
+  0.0874  -4.154   -3.807    +nan
+  uncorrected      : p=7 best v=100.00 w=0.018  1s w 0.015-0.022 v 2.90-100.00  area 0.51 dex^2  chi2 4.31  slope errs [1.53, 1.57, 1.53, 1.61, 2.0, 1.82, 1.72]
+  mixing-corrected : p=5 best v=0.10 w=0.010  1s w 0.010-0.178 v 0.10-0.44  area 1.54 dex^2  chi2 7.79  slope errs [0.11, 0.11, 0.11, 0.13, 0.11]
+
+Rosette_nebula sii: 10000 fibres, sigma_loc (200 neighbours) median 1.76 km/s, M=2.97
+  floor   stored   control  normalised
+  0.0110  -2.466   -2.346    -1.608
+  0.0155  -2.483   -2.351    -1.224
+  0.0219  -2.487   -2.388    -1.371
+  0.0310  -2.121   -2.394    -1.207
+  0.0438  -1.684   -0.426    +nan
+  0.0619  +0.969   +0.437    +nan
+  0.0874  +1.513   +0.969    +nan
+  uncorrected      : p=7 best v=5.23 w=0.018  1s w 0.012-0.024 v 1.91-100.00  area 0.77 dex^2  chi2 3.09  slope errs [1.05, 1.06, 1.12, 1.27, 2.86, 3.36, 3.69]
+  mixing-corrected : p=4 best v=0.10 w=0.010  1s w 0.010-0.944 v 0.10-0.86  area 2.18 dex^2  chi2 5.48  slope errs [0.47, 0.36, 0.44, 0.45]
+
+Rosette_nebula siii: 8592 fibres, sigma_loc (200 neighbours) median 1.05 km/s, M=2.68
+  floor   stored   control  normalised
+  0.0110  -3.555   -3.555    -0.340
+  0.0155  -3.547   -3.547    -0.226
+  0.0219  -3.535   -3.535    -0.142
+  0.0310  -3.308   -3.308    -0.019
+  0.0438  -2.911   -2.911    +0.085
+  0.0619  -0.775   -0.775    +nan
+  uncorrected      : p=6 best v=1.14 w=0.167  1s w 0.046-1.500 v 0.92-100.00  area 0.97 dex^2  chi2 1.91  slope errs [2.7, 2.71, 2.7, 2.66, 2.34, 1.84]
+  mixing-corrected : p=5 best v=0.10 w=0.010  1s w 0.010-0.018 v 0.10-0.46  area 0.39 dex^2  chi2 13.37  slope errs [0.17, 0.18, 0.19, 0.18, 0.19]
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Rosette_nebula_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Rosette_nebula_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Rosette_nebula_k200_fits.npz

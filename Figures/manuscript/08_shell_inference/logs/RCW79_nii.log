@@ -1,0 +1,9 @@
+    NII: 4,025 fibres with S/N > 20; -352 overlap; -0 velocity outlier(s)  -> 3,673 used; gradient 0.106 km/s/pc removed
+RCW79 nii: 3,673 fibres, R_HII=14.66 pc, 37" = 0.0514 R_HII, M=1.71, floors [0.0514, 0.0726, 0.1025, 0.1448]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0514: slope -0.801, 35 bins, l/R_HII 0.059-4.122
+  floor 0.0726: slope -0.768, 36 bins, l/R_HII 0.083-4.111
+  floor 0.1025: slope -0.754, 38 bins, l/R_HII 0.110-4.098
+  floor 0.1448: slope -0.691, 30 bins, l/R_HII 0.155-4.079
+Saved Figures/manuscript/08_shell_inference/data/RCW79_NII_multifloor.npz (4 floors, 21 jackknife replicates)

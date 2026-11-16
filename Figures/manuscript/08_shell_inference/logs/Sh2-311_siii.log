@@ -1,0 +1,11 @@
+    SIII: 791 fibres with S/N > 20; -193 overlap; -0 velocity outlier(s)  -> 598 used; gradient 0.125 km/s/pc removed
+Sh2-311 siii: 598 fibres, R_HII=46.08 pc, 37" = 0.0206 R_HII, M=1.32, floors [0.0206, 0.029, 0.041, 0.0579, 0.0818, 0.1156]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0206: slope -1.527, 5 bins, l/R_HII 0.024-0.062
+  floor 0.0290: only 4 bins in the first K>3 run; dropped
+  floor 0.0410: only 3 bins in the first K>3 run; dropped
+  floor 0.0579: only 1 bins in the first K>3 run; dropped
+  floor 0.0818: only 1 bins in the first K>3 run; dropped
+  floor 0.1156: only 1 bins in the first K>3 run; dropped
+Saved Figures/manuscript/08_shell_inference/data/Sh2-311_SIII_multifloor.npz (1 floors, 7 jackknife replicates)

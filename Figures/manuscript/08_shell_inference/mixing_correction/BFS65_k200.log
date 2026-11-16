@@ -1,0 +1,25 @@
+
+BFS65 nii: 3797 fibres, sigma_loc (200 neighbours) median 1.70 km/s, M=1.38
+  floor   stored   control  normalised
+  0.1028  -1.942   -1.942    -0.780
+  0.1452  -2.547   -2.547    -0.931
+  uncorrected      : p=2 best v=100.00 w=0.312  1s w 0.213-0.506 v 3.22-100.00  area 1.20 dex^2  chi2 1.92  slope errs [0.85, 1.04]
+  mixing-corrected : p=2 best v=5.05 w=0.332  1s w 0.167-0.448 v 1.78-100.00  area 0.58 dex^2  chi2 0.00  slope errs [0.17, 0.24]
+
+BFS65 sii: 2306 fibres, sigma_loc (200 neighbours) median 2.58 km/s, M=1.15
+  floor   stored   control  normalised
+  0.1028  -0.489   -0.489    -0.700
+  0.1452  -0.888   -0.888    -1.215
+  uncorrected      : p=2 best v=100.00 w=0.548  1s w 0.448-0.712 v 3.57-100.00  area 0.53 dex^2  chi2 3.96  slope errs [0.2, 0.28]
+  mixing-corrected : p=2 best v=100.00 w=0.440  1s w 0.319-0.619 v 2.61-100.00  area 0.82 dex^2  chi2 1.67  slope errs [0.31, 0.44]
+
+BFS65 siii: 1100 fibres, sigma_loc (200 neighbours) median 2.31 km/s, M=1.36
+  floor   stored   control  normalised
+  0.1028  -3.648   -3.646    -0.880
+  0.1452  -4.634   -4.634    -1.248
+  uncorrected      : p=2 best v=100.00 w=0.226  1s w 0.010-0.338 v 0.67-100.00  area 4.42 dex^2  chi2 0.65  slope errs [2.43, 3.31]
+  mixing-corrected : p=2 best v=100.00 w=0.560  1s w 0.010-1.500 v 0.10-100.00  area 3.74 dex^2  chi2 0.15  slope errs [1.3, 1.82]
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/BFS65_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/BFS65_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/BFS65_k200_fits.npz

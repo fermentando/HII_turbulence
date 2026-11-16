@@ -1,0 +1,5 @@
+region,line,k_neigh,M,version,n_floors,slope_37arcsec,best_v,best_w,w_1sig_lo,w_1sig_hi,v_1sig_lo,v_1sig_hi,area_1sig_dex2,chi2_min
+RCW79,nii,200,1.415,uncorrected,4,-0.8013,1.176,0.0827,0.01,0.1544,0.567,1.723,0.582,0.284
+RCW79,nii,200,1.415,mixing-corrected,2,-1.1599,100.0,0.1888,0.01,0.2502,1.607,100.0,1.152,0.128
+RCW79,sii,200,1.191,uncorrected,4,-0.2896,1.26,1.4121,0.2005,1.5,0.831,100.0,0.965,0.98
+RCW79,sii,200,1.191,mixing-corrected,4,-0.5221,0.652,0.01,0.01,0.4764,0.207,1.499,2.288,1.551

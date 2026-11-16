@@ -37,6 +37,23 @@ sky position) -- a scale that is essentially **fixed**, set by the shell's
 own geometry, and **not** small just because the pair's *projected*
 separation happens to be small.
 
+**Important correction (see "Isolating the source: a `v_bulk=0` test"
+below): this is not primarily about the bulk/systematic velocity field.**
+It was initially assumed that this fixed offset came from the coherent
+radial outflow (`v = v_turb + v_bulk·r̂`), since at sky-center that gives a
+clean `Δv_shell(ρ=0) = 2·v_bulk`. A direct test with `v_bulk=0` shows the
+effect is reduced but **not eliminated** -- the true driver is more
+general: a near-side and far-side point are separated by a large chunk of
+the shell's full 3D depth, easily exceeding the turbulent field's own
+correlation length. Once two points are farther apart than that
+correlation length, their turbulent velocities are close to **independent
+draws** rather than correlated the way two genuinely nearby points' are.
+That variance mismatch -- independent vs. correlated -- is enough on its
+own to produce a heavy-tailed `Δv` mixture and `K>3`, with no bulk flow
+required. `v_bulk` amplifies the effect (adds a large, systematic,
+same-sign contribution on top of the decorrelation) but is not its root
+cause.
+
 Meanwhile, **genuine** nearby pairs (points that are actually close
 together in 3D, not just in projection) have a velocity difference that
 grows with `r` in the ordinary structure-function way: tiny `Δv` at tiny
@@ -78,6 +95,42 @@ to bin from there. Essentially no width has 3+ bins clearing `K ≥ 3`
 (`MIN_FIT_POINTS = 3` in `fit_k_vs_logr_above_floor`), so the fit falls
 back to its zero default almost everywhere -- which is exactly the flat
 `r_min = 0.1` curve seen in the comparison plot.
+
+## Isolating the source: a `v_bulk=0` test
+
+The geometric argument above predicts a specific velocity scale: at
+sky-center sightlines (`ρ=0`), the near and far shell crossings sit at
+`x ≈ ∓R̄` (the shell's mean radius), so with `v = v_turb + v_bulk·r̂`,
+`Δv_shell(ρ=0) = 2·v_bulk`. With the production value `v_bulk=10` against
+`σ_turb=1`, that is a `20σ` outlier -- and since kurtosis weights by
+`Δv⁴`, a single such pair contributes to `⟨Δv⁴⟩` as much as `20⁴=160,000`
+ordinary-scale pairs would. The natural prediction from this picture is
+that setting `v_bulk=0` should remove the systematic near/far offset
+entirely and strongly suppress or eliminate the artifact.
+
+This was tested directly: `generate_random_point_expanding_shell_grid.py
+--v-bulk 0.0` regenerated all four `N` datasets
+(`synthetic_projected_shell_random_points_nopixel_nobulk_n{N}`), and
+`plot_fixed_rmin_comparison_nobulk.py` reran the identical left/middle/
+right diagnostic on them
+(`random_point_count_dK_dlogr_fixed_rmin_comparison_nobulk.png`).
+
+**Result: the artifact survives almost fully.** The fitted floor at the
+smallest widths drops from `≈-2.0` (`v_bulk=10`) to only `≈-1.4` to `-1.5`
+(`v_bulk=0`) -- a ~25-30% reduction, not the near-total suppression the
+`v_bulk`-only picture predicted. The sigmoid shape, the `r_min`-dependence
+of `x0` (if anything steeper with `v_bulk=0`: slope `≈0.75` vs `≈0.42`
+with `v_bulk=10`), and the all-fallback flat line at `r_min/r_HII=0.1` are
+all still present.
+
+This directly falsifies "bulk flow is the source" and supports the
+decorrelation picture above instead: the dominant ingredient is that
+near/far pairs are **3D-decorrelated regardless of bulk motion** (they are
+simply too far apart in 3D for the turbulent field's correlation length to
+connect them), and that decorrelation alone is sufficient to source most
+of the effect. `v_bulk` makes it considerably worse (the `20σ` estimate
+above is real, just not the only contribution), but removing it only
+partially dilutes the artifact rather than eliminating it.
 
 ## Connection to the pixelized pipeline
 

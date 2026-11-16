@@ -1,0 +1,36 @@
+
+RCW60 nii: 9116 fibres, sigma_loc (200 neighbours) median 1.09 km/s, M=1.22
+  floor   stored   control  normalised
+  0.0247  -0.656   -0.656    -1.556
+  0.0348  -0.681   -0.681    -1.390
+  0.0492  -0.663   -0.663    -1.301
+  0.0695  -0.715   -0.715    +nan
+  0.0982  -0.824   -0.824    +nan
+  0.1387  -1.399   -1.399    +nan
+  uncorrected      : p=5 best v=0.99 w=0.090  1s w 0.010-0.583 v 0.19-1.45  area 2.42 dex^2  chi2 1.86  slope errs [0.25, 0.28, 0.3, 0.36, 0.4]
+  mixing-corrected : p=3 best v=2.12 w=0.010  1s w 0.010-0.039 v 1.72-2.80  area 0.22 dex^2  chi2 0.28  slope errs [0.18, 0.19, 0.22]
+
+RCW60 sii: 7080 fibres, sigma_loc (200 neighbours) median 1.49 km/s, M=1.23
+  floor   stored   control  normalised
+  0.0247  -0.364   -0.364    -0.601
+  0.0348  -0.418   -0.418    -0.835
+  0.0492  -0.436   -0.436    -0.811
+  0.0695  -0.481   -0.481    +nan
+  0.0982  -0.733   -0.733    +nan
+  uncorrected      : p=5 best v=2.61 w=0.312  1s w 0.201-0.772 v 1.22-100.00  area 2.01 dex^2  chi2 1.40  slope errs [0.28, 0.27, 0.3, 0.33, 0.41]
+  mixing-corrected : p=3 best v=2.52 w=0.154  1s w 0.119-0.209 v 1.40-12.46  area 0.61 dex^2  chi2 1.54  slope errs [0.21, 0.26, 0.32]
+
+RCW60 siii: 3176 fibres, sigma_loc (200 neighbours) median 1.29 km/s, M=1.25
+  floor   stored   control  normalised
+  0.0247  -0.605   -0.605    -1.801
+  0.0348  -0.572   -0.572    -1.407
+  0.0492  -0.616   -0.616    -1.444
+  0.0695  -0.586   -0.586    -1.248
+  0.0982  -1.051   -1.051    +nan
+  0.1387  -0.632   -0.632    +nan
+  uncorrected      : p=6 best v=1.06 w=0.045  1s w 0.010-0.171 v 0.57-1.66  area 0.79 dex^2  chi2 1.64  slope errs [0.57, 0.35, 0.35, 0.42, 0.95, 0.97]
+  mixing-corrected : p=4 best v=2.05 w=0.010  1s w 0.010-0.086 v 1.26-4.55  area 1.10 dex^2  chi2 0.78  slope errs [0.62, 0.44, 0.57, 0.44]
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW60_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW60_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW60_k200_fits.npz

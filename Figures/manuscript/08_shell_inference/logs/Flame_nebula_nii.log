@@ -1,0 +1,11 @@
+    NII: 4,939 fibres with S/N > 20; -406 overlap; -0 velocity outlier(s)  -> 4,533 used; gradient 0.702 km/s/pc removed
+Flame_nebula nii: 4,533 fibres, R_HII=4.36 pc, 37" = 0.0206 R_HII, M=1.48, floors [0.0206, 0.029, 0.041, 0.0579, 0.0818, 0.1156]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0206: slope -2.345, 25 bins, l/R_HII 0.024-0.498
+  floor 0.0290: slope -2.405, 26 bins, l/R_HII 0.033-0.494
+  floor 0.0410: slope -2.241, 28 bins, l/R_HII 0.044-0.490
+  floor 0.0579: slope -1.747, 23 bins, l/R_HII 0.062-0.461
+  floor 0.0818: slope -1.561, 18 bins, l/R_HII 0.087-0.548
+  floor 0.1156: slope -1.735, 14 bins, l/R_HII 0.126-1.393
+Saved Figures/manuscript/08_shell_inference/data/Flame_nebula_NII_multifloor.npz (6 floors, 21 jackknife replicates)

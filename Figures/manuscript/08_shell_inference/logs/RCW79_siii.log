@@ -1,0 +1,7 @@
+    SIII: 653 fibres with S/N > 20; -162 overlap; -0 velocity outlier(s)  -> 491 used; gradient 0.558 km/s/pc removed
+RCW79 siii: 491 fibres, R_HII=14.66 pc, 37" = 0.0514 R_HII, M=1.53, floors [0.0514, 0.0726, 0.1025, 0.1448]
+  floor 0.0514: only 4 bins in the first K>3 run; dropped
+  floor 0.0726: only 4 bins in the first K>3 run; dropped
+  floor 0.1025: only 3 bins in the first K>3 run; dropped
+  floor 0.1448: only 1 bins in the first K>3 run; dropped
+Saved Figures/manuscript/08_shell_inference/data/RCW79_SIII_multifloor.npz (0 floors, 0 jackknife replicates)

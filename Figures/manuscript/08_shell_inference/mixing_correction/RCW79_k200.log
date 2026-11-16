@@ -1,0 +1,24 @@
+
+RCW79 nii: 3673 fibres, sigma_loc (200 neighbours) median 2.24 km/s, M=1.41
+  floor   stored   control  normalised
+  0.0514  -0.801   -0.801    -1.160
+  0.0726  -0.768   -0.768    -1.514
+  0.1025  -0.754   -0.754    +nan
+  0.1448  -0.691   -0.691    +nan
+  uncorrected      : p=4 best v=1.18 w=0.083  1s w 0.010-0.154 v 0.57-1.72  area 0.58 dex^2  chi2 0.28  slope errs [0.33, 0.35, 0.4, 0.44]
+  mixing-corrected : p=2 best v=100.00 w=0.189  1s w 0.010-0.250 v 1.61-100.00  area 1.15 dex^2  chi2 0.13  slope errs [0.3, 0.48]
+
+RCW79 sii: 3021 fibres, sigma_loc (200 neighbours) median 2.38 km/s, M=1.19
+  floor   stored   control  normalised
+  0.0514  -0.290   -0.290    -0.522
+  0.0726  -0.333   -0.333    -0.744
+  0.1025  -0.285   -0.285    -0.647
+  0.1448  -0.270   -0.270    -0.807
+  uncorrected      : p=4 best v=1.26 w=1.412  1s w 0.201-1.500 v 0.83-100.00  area 0.96 dex^2  chi2 0.98  slope errs [0.34, 0.38, 0.38, 0.42]
+  mixing-corrected : p=4 best v=0.65 w=0.010  1s w 0.010-0.476 v 0.21-1.50  area 2.29 dex^2  chi2 1.55  slope errs [0.2, 0.32, 0.35, 0.55]
+
+RCW79 siii: no fit at the 37" floor; skipped
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW79_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW79_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW79_k200_fits.npz

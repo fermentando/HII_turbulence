@@ -1,0 +1,7 @@
+    SII: 2,563 fibres with S/N > 20; -257 overlap; -0 velocity outlier(s)  -> 2,306 used; gradient 0.038 km/s/pc removed
+BFS65 sii: 2,306 fibres, R_HII=5.90 pc, 37" = 0.1028 R_HII, M=1.26, floors [0.1028, 0.1452]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.1028: slope -0.489, 14 bins, l/R_HII 0.118-0.725
+  floor 0.1452: slope -0.888, 13 bins, l/R_HII 0.167-0.724
+Saved Figures/manuscript/08_shell_inference/data/BFS65_SII_multifloor.npz (2 floors, 19 jackknife replicates)

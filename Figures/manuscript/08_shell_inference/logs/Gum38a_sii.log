@@ -1,0 +1,9 @@
+    SII: 6,987 fibres with S/N > 20; -995 overlap; -7 velocity outlier(s) [89.0, 120.8, 142.8, 157.4, 86.7, 109.7, 121.4] -> 5,985 used; gradient 0.415 km/s/pc removed
+Gum38a sii: 5,985 fibres, R_HII=10.82 pc, 37" = 0.0411 R_HII, M=2.38, floors [0.0411, 0.0581, 0.082, 0.1159]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0411: slope -3.139, 29 bins, l/R_HII 0.047-1.618
+  floor 0.0581: slope -2.869, 30 bins, l/R_HII 0.067-1.605
+  floor 0.0820: slope -2.813, 31 bins, l/R_HII 0.088-1.590
+  floor 0.1159: slope -2.736, 18 bins, l/R_HII 0.135-1.570
+Saved Figures/manuscript/08_shell_inference/data/Gum38a_SII_multifloor.npz (4 floors, 20 jackknife replicates)

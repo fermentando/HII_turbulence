@@ -1,0 +1,37 @@
+
+Flame_nebula nii: 4533 fibres, sigma_loc (200 neighbours) median 0.72 km/s, M=1.39
+  floor   stored   control  normalised
+  0.0206  -2.345   -2.345    -6.118
+  0.0290  -2.405   -2.405    -6.270
+  0.0410  -2.241   -2.241    -5.555
+  0.0579  -1.747   -1.747    -3.808
+  0.0818  -1.561   -1.561    -2.528
+  0.1156  -1.735   -1.735    +nan
+  uncorrected      : p=6 best v=1.66 w=0.010  1s w 0.010-0.058 v 1.26-3.22  area 0.38 dex^2  chi2 2.64  slope errs [0.73, 0.77, 0.75, 0.75, 0.77, 1.34]
+  mixing-corrected : p=5 best v=100.00 w=0.010  1s w 0.010-0.026 v 8.21-100.00  area 0.74 dex^2  chi2 8.41  slope errs [2.73, 3.79, 3.01, 1.96, 0.75]
+
+Flame_nebula sii: 4031 fibres, sigma_loc (200 neighbours) median 0.94 km/s, M=1.24
+  floor   stored   control  normalised
+  0.0206  -1.623   -1.623    -3.167
+  0.0290  -1.615   -1.615    -3.122
+  0.0410  -1.607   -1.607    -3.114
+  0.0579  -1.502   -1.502    -2.770
+  0.0818  -1.369   -1.369    -2.234
+  0.1156  -1.571   -1.571    -2.016
+  uncorrected      : p=6 best v=1.66 w=0.038  1s w 0.010-0.119 v 0.65-7.93  area 2.94 dex^2  chi2 2.01  slope errs [0.79, 0.78, 0.78, 0.72, 0.66, 0.78]
+  mixing-corrected : p=6 best v=22.48 w=0.061  1s w 0.046-0.129 v 1.45-100.00  area 2.47 dex^2  chi2 1.28  slope errs [1.76, 1.76, 1.77, 1.61, 1.46, 1.15]
+
+Flame_nebula siii: 1826 fibres, sigma_loc (200 neighbours) median 1.08 km/s, M=1.25
+  floor   stored   control  normalised
+  0.0206  +0.162   +0.162    -3.794
+  0.0290  +0.194   +0.194    -3.902
+  0.0410  +0.198   +0.198    -4.088
+  0.0579  +2.111   +2.111    -4.080
+  0.0818  +1.750   +1.750    -3.977
+  0.1156  +1.895   +1.895    +nan
+  uncorrected      : p=6 best v=7.66 w=0.161  1s w 0.112-0.266 v 1.85-100.00  area 1.75 dex^2  chi2 5.54  slope errs [0.9, 0.76, 0.88, 1.82, 2.24, 2.18]
+  mixing-corrected : p=5 best v=100.00 w=0.083  1s w 0.037-0.148 v 4.88-100.00  area 1.65 dex^2  chi2 2.56  slope errs [2.01, 1.87, 1.72, 1.85, 1.97]
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Flame_nebula_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Flame_nebula_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Flame_nebula_k200_fits.npz

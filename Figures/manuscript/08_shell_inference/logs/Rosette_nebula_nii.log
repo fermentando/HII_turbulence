@@ -1,0 +1,13 @@
+    NII: 28,782 fibres with S/N > 20; -9607 overlap; -25 velocity outlier(s) [-2.9, -6.3, -4.3, -2.4, -4.7, -5.2, -2.8, -7.4, -5.7, -10.4, -7.6, -5.7, -10.6, -9.1, -15.7, -4.1, -6.0, -9.4, -5.9, -2.6, -10.7, -6.8, -4.0, -5.7, -8.0] -> 19,150 used; gradient 0.149 km/s/pc removed
+Rosette_nebula nii: 19,150 fibres, R_HII=31.76 pc, 37" = 0.0088 R_HII, M=4.26, floors [0.011, 0.0155, 0.0219, 0.031, 0.0438, 0.0619, 0.0874, 0.1234]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.0110: slope -5.002, 26 bins, l/R_HII 0.092-1.618
+  floor 0.0155: slope -5.005, 29 bins, l/R_HII 0.092-1.615
+  floor 0.0219: slope -5.024, 29 bins, l/R_HII 0.092-1.610
+  floor 0.0310: slope -4.718, 21 bins, l/R_HII 0.092-1.605
+  floor 0.0438: slope -4.765, 13 bins, l/R_HII 0.138-1.806
+  floor 0.0619: slope -4.546, 10 bins, l/R_HII 0.196-1.796
+  floor 0.0874: slope -4.154, 7 bins, l/R_HII 0.276-1.779
+  floor 0.1234: only 4 bins in the first K>3 run; dropped
+Saved Figures/manuscript/08_shell_inference/data/Rosette_nebula_NII_multifloor.npz (7 floors, 21 jackknife replicates)

@@ -1,0 +1,31 @@
+
+Gum38a nii: 6532 fibres, sigma_loc (200 neighbours) median 2.48 km/s, M=2.29
+  floor   stored   control  normalised
+  0.0411  -4.401   -4.401    -3.390
+  0.0581  -4.406   -4.406    -2.582
+  0.0820  -4.388   -4.388    -2.057
+  0.1159  -4.176   -4.176    -1.604
+  uncorrected      : p=4 best v=100.00 w=0.055  1s w 0.053-0.059 v 9.12-100.00  area 0.07 dex^2  chi2 8.18  slope errs [0.85, 0.84, 0.83, 0.92]
+  mixing-corrected : p=4 best v=2.61 w=0.010  1s w 0.010-0.101 v 1.50-5.42  area 0.97 dex^2  chi2 2.09  slope errs [2.12, 1.24, 0.97, 0.81]
+
+Gum38a sii: 5985 fibres, sigma_loc (200 neighbours) median 3.01 km/s, M=1.88
+  floor   stored   control  normalised
+  0.0411  -3.139   -3.139    -1.837
+  0.0581  -2.869   -2.869    -1.606
+  0.0820  -2.813   -2.813    -1.336
+  0.1159  -2.736   -2.736    -1.000
+  uncorrected      : p=4 best v=100.00 w=0.010  1s w 0.010-0.076 v 5.81-100.00  area 1.46 dex^2  chi2 1.75  slope errs [0.68, 0.64, 0.64, 0.71]
+  mixing-corrected : p=4 best v=2.70 w=0.010  1s w 0.010-0.046 v 1.61-5.42  area 0.64 dex^2  chi2 4.19  slope errs [0.44, 0.44, 0.37, 0.4]
+
+Gum38a siii: 5641 fibres, sigma_loc (200 neighbours) median 4.01 km/s, M=2.28
+  floor   stored   control  normalised
+  0.0411  -5.078   -5.078    -3.850
+  0.0581  -5.086   -5.086    -2.932
+  0.0820  -5.096   -5.096    -2.457
+  0.1159  -5.173   -5.173    -1.994
+  uncorrected      : p=4 best v=1.55 w=0.240  1s w 0.145-0.516 v 1.22-1.91  area 0.34 dex^2  chi2 17.13  slope errs [1.16, 1.16, 1.17, 1.08]
+  mixing-corrected : p=4 best v=100.00 w=0.010  1s w 0.010-0.035 v 5.23-100.00  area 1.05 dex^2  chi2 10.25  slope errs [1.15, 1.2, 1.27, 1.31]
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Gum38a_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Gum38a_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/Gum38a_k200_fits.npz

@@ -72,6 +72,7 @@ WIDTHS = width_grid(0.02, 1.0, 14)
 BIN_RESOLUTION = 20
 RMIN_SWEEP = np.geomspace(0.001, 0.1, 6)
 MIN_FIT_POINTS_FOR_LINE = 3  # don't trust a line fit through fewer non-fallback widths
+FLOOR_FIXED = -2.0  # logistic floor pinned across all fits -- see rationale below
 
 LEFT_CACHE = BASE_DIR / "_fixed_rmin_left_cache.npz"
 RIGHT_CACHE = BASE_DIR / "_fixed_rmin_right_cache.npz"
@@ -119,27 +120,33 @@ def slope_for_width(y: np.ndarray, z: np.ndarray, v: np.ndarray, min_separation:
     return fit["slope"], bool(fit["used_zero_fallback"])
 
 
-def logistic(log_w: np.ndarray, floor: float, x0: float, scale: float) -> np.ndarray:
-    """Sigmoid rising from `floor` (small width) to 0 (large width)."""
-    return floor / (1.0 + np.exp((log_w - x0) / scale))
+def logistic(log_w: np.ndarray, x0: float, scale: float) -> np.ndarray:
+    """Sigmoid rising from FLOOR_FIXED (small width) to 0 (large width).
+
+    floor is pinned rather than fitted: letting it float left the two
+    finest-r_min curves (0.001, 0.0025) essentially unconstrained, since
+    their data never actually reach the asymptotic plateau within the
+    measured width range -- curve_fit was extrapolating floor from the
+    slope of a curve that hadn't saturated yet, giving errors larger than
+    the fitted values themselves. Fixing floor at a representative value
+    (the well-converged fits cluster around floor~-2) removes that bad
+    degree of freedom and leaves x0/scale well-determined for every r_min.
+    """
+    return FLOOR_FIXED / (1.0 + np.exp((log_w - x0) / scale))
 
 
-def max_slope(floor: np.ndarray, scale: np.ndarray) -> np.ndarray:
+def max_slope(scale: np.ndarray) -> np.ndarray:
     """Steepest point of the logistic (at its inflection, log_w=x0).
 
-    d(logistic)/d(log_w) at log_w=x0 is -floor/(4*scale): combines floor and
-    scale into a single characteristic "how steep is the transition" number,
-    which floor alone conflates (floor and scale both shrink together as
-    r_min coarsens, so floor alone isn't an apples-to-apples comparison
-    across r_min values -- see the scale-value check this was added for).
+    d(logistic)/d(log_w) at log_w=x0 is -FLOOR_FIXED/(4*scale).
     """
-    return -floor / (4.0 * scale)
+    return -FLOOR_FIXED / (4.0 * scale)
 
 
 def logistic_fit_with_band(log_w: np.ndarray, y: np.ndarray, mask: np.ndarray, rng: np.random.Generator):
-    """Logistic fit over masked points, + MC-propagated 1-sigma bands.
+    """Logistic fit (floor fixed) over masked points, + MC-propagated 1-sigma bands.
 
-    Returns (dense_x, dense_y, band_lo, band_hi, floor, floor_err, scale,
+    Returns (dense_x, dense_y, band_lo, band_hi, x0, x0_err, scale,
     scale_err, max_slope_val, max_slope_err) -- all None if there aren't
     enough unmasked points to fit, or the fit doesn't converge (e.g. an
     all-fallback-zero curve has nothing to fit at all).
@@ -152,7 +159,7 @@ def logistic_fit_with_band(log_w: np.ndarray, y: np.ndarray, mask: np.ndarray, r
             logistic,
             log_w[mask],
             y[mask],
-            p0=[y[mask].min(), np.median(log_w[mask]), 0.5],
+            p0=[np.median(log_w[mask]), 0.3],
             maxfev=5000,
         )
     except RuntimeError:
@@ -165,18 +172,18 @@ def logistic_fit_with_band(log_w: np.ndarray, y: np.ndarray, mask: np.ndarray, r
         draw_curves = np.array([logistic(dense, *p) for p in draws])
         band_lo = np.percentile(draw_curves, 16, axis=0)
         band_hi = np.percentile(draw_curves, 84, axis=0)
-        draw_max_slopes = max_slope(draws[:, 0], draws[:, 2])
+        draw_max_slopes = max_slope(draws[:, 1])
         max_slope_err = float(np.std(draw_max_slopes))
     else:
         band_lo = band_hi = None
         max_slope_err = np.nan
-    floor_err = float(np.sqrt(cov[0, 0])) if has_cov else np.nan
-    scale_err = float(np.sqrt(cov[2, 2])) if has_cov else np.nan
-    max_slope_val = float(max_slope(params[0], params[2]))
+    x0_err = float(np.sqrt(cov[0, 0])) if has_cov else np.nan
+    scale_err = float(np.sqrt(cov[1, 1])) if has_cov else np.nan
+    max_slope_val = float(max_slope(params[1]))
     return (
         dense, curve, band_lo, band_hi,
-        float(params[0]), floor_err,
-        float(params[2]), scale_err,
+        float(params[0]), x0_err,
+        float(params[1]), scale_err,
         max_slope_val, max_slope_err,
     )
 
@@ -270,115 +277,151 @@ def load_or_compute_right() -> tuple[dict, dict]:
     return slopes, fallback
 
 
-left_slopes, left_fallback = load_or_compute_left()
-right_slopes, right_fallback = load_or_compute_right()
+def draw_panels(fig, axL, axR, axS, rmin_cmap="viridis", scale_color="#31688e", x0_color="#d95f02") -> None:
+    """Draw the three panels (vary N; vary r_min at fixed N; logistic scale/x0 vs r_min) onto given axes.
 
-style_path = REPO_ROOT / "custom_plot.mplstyle"
-try:
-    plt.style.use(str(style_path))
-except OSError:
-    pass
+    rmin_cmap (name or Colormap) colours the r_min curves; scale_color / x0_color the right-panel parameters.
+    """
+    left_slopes, left_fallback = load_or_compute_left()
+    right_slopes, right_fallback = load_or_compute_right()
+    rng = np.random.default_rng(0)
+    cmap = plt.colormaps["Blues"]
 
-rng = np.random.default_rng(0)
-cmap = plt.colormaps["Blues"]
-fig, (axL, axR, axS) = plt.subplots(1, 3, figsize=(21.0, 6.0))
+    # --- Left: vary N (shared r_min), straight-line fit + propagated 1-sigma band ---
+    for i, n in enumerate(N_VALUES):
+        shade = 0.3 + 0.6 * (i / (len(N_VALUES) - 1))
+        axL.plot(WIDTHS, left_slopes[n], "o--", ms=5.0, lw=1.3, color=cmap(shade), label=f"N={n:,}")
 
-# --- Left: vary N (shared r_min), straight-line fit + propagated 1-sigma band ---
-for i, n in enumerate(N_VALUES):
-    shade = 0.3 + 0.6 * (i / (len(N_VALUES) - 1))
-    axL.plot(WIDTHS, left_slopes[n], "o--", ms=5.0, lw=1.3, color=cmap(shade), label=f"N={n:,}")
+    left_matrix = np.array([left_slopes[n] for n in N_VALUES])
+    left_fallback_matrix = np.array([left_fallback[n] for n in N_VALUES])
+    mean_slope = np.nanmean(left_matrix, axis=0)
+    left_has_fit = ~np.all(left_fallback_matrix, axis=0)
+    log_widths = np.log10(WIDTHS)
 
-left_matrix = np.array([left_slopes[n] for n in N_VALUES])
-left_fallback_matrix = np.array([left_fallback[n] for n in N_VALUES])
-mean_slope = np.nanmean(left_matrix, axis=0)
-left_has_fit = ~np.all(left_fallback_matrix, axis=0)
-log_widths = np.log10(WIDTHS)
+    left_fit = logistic_fit_with_band(log_widths, mean_slope, left_has_fit, rng)
+    # Spread across the N curves themselves (min/max at each width), rather than
+    # the fit's own propagated-covariance band -- requested to be wider, to show
+    # how much the individual N lines actually disagree, not just the fit's
+    # formal uncertainty on the mean.
+    spread_lo = np.nanmin(left_matrix, axis=0)
+    spread_hi = np.nanmax(left_matrix, axis=0)
+    axL.fill_between(WIDTHS, spread_lo, spread_hi, color="0.5", alpha=0.3, zorder=2, label=r"spread across $N$")
+    if left_fit is not None:
+        dense, curve, band_lo, band_hi, x0, x0_err, scale, scale_err, mslope, mslope_err = left_fit
+        axL.plot(10**dense, curve, "-", color="crimson", lw=2.0, label=fr"logistic fit (floor fixed$={FLOOR_FIXED:.1f}$)", zorder=5)
 
-left_fit = logistic_fit_with_band(log_widths, mean_slope, left_has_fit, rng)
-# Spread across the N curves themselves (min/max at each width), rather than
-# the fit's own propagated-covariance band -- requested to be wider, to show
-# how much the individual N lines actually disagree, not just the fit's
-# formal uncertainty on the mean.
-spread_lo = np.nanmin(left_matrix, axis=0)
-spread_hi = np.nanmax(left_matrix, axis=0)
-axL.fill_between(WIDTHS, spread_lo, spread_hi, color="0.5", alpha=0.3, zorder=2, label=r"spread across $N$")
-if left_fit is not None:
-    dense, curve, band_lo, band_hi, floor, floor_err, scale, scale_err, mslope, mslope_err = left_fit
-    axL.plot(10**dense, curve, "-", color="crimson", lw=2.0, label=fr"logistic fit (floor$={floor:.2f}$)", zorder=5)
+    axL.axvline(0.2, color="0.25", ls=":", lw=1.1)
+    axL.axhline(0, color="0.25", ls="--", lw=1.1)
+    axL.set_xscale("log")
+    axL.set_xlabel(r"$\Delta r_{\rm shell}/r_{\rm HII}$")
+    axL.grid(True, axis="y", ls="--", alpha=0.4)
+    axL.legend(fontsize=9)
+    axL.set_ylabel(r"$dK/d\log_{10} r$")
 
-axL.axvline(0.2, color="0.25", ls=":", lw=1.1)
-axL.axhline(0, color="0.25", ls="--", lw=1.1)
-axL.set_xscale("log")
-axL.set_xlabel(r"$\Delta r_{\rm shell}/r_{\rm HII}$")
-axL.grid(True, axis="y", ls="--", alpha=0.4)
-axL.legend(fontsize=9)
-axL.set_ylabel(r"$dK/d\log_{10} r$")
+    # --- Middle: fixed N=100,000, vary r_min -- per-r_min line fits, colored by r_min/r_HII ---
+    ratios = RMIN_SWEEP / R_OUTER_FIXED
+    norm = matplotlib.colors.LogNorm(vmin=ratios.min(), vmax=ratios.max())
+    right_cmap = plt.colormaps[rmin_cmap] if isinstance(rmin_cmap, str) else rmin_cmap
 
-# --- Middle: fixed N=100,000, vary r_min -- per-r_min line fits, colored by r_min/r_HII ---
-ratios = RMIN_SWEEP / R_OUTER_FIXED
-norm = matplotlib.colors.LogNorm(vmin=ratios.min(), vmax=ratios.max())
-right_cmap = plt.colormaps["viridis"]
+    fit_scale = np.full(len(RMIN_SWEEP), np.nan)
+    fit_scale_err = np.full(len(RMIN_SWEEP), np.nan)
+    fit_x0 = np.full(len(RMIN_SWEEP), np.nan)
+    fit_x0_err = np.full(len(RMIN_SWEEP), np.nan)
+    for j, rmin_val in enumerate(RMIN_SWEEP):
+        color = right_cmap(norm(rmin_val / R_OUTER_FIXED))
+        y_arr = np.asarray(right_slopes[float(rmin_val)])
+        fb_arr = np.asarray(right_fallback[float(rmin_val)])
+        axR.plot(WIDTHS, y_arr, "o", ms=5.0, color=color, alpha=0.9, zorder=3)
 
-fit_scale = np.full(len(RMIN_SWEEP), np.nan)
-fit_scale_err = np.full(len(RMIN_SWEEP), np.nan)
-for j, rmin_val in enumerate(RMIN_SWEEP):
-    color = right_cmap(norm(rmin_val / R_OUTER_FIXED))
-    y_arr = np.asarray(right_slopes[float(rmin_val)])
-    fb_arr = np.asarray(right_fallback[float(rmin_val)])
-    axR.plot(WIDTHS, y_arr, "o", ms=5.0, color=color, alpha=0.9, zorder=3)
+        fit = logistic_fit_with_band(log_widths, y_arr, ~fb_arr, rng)
+        if fit is not None:
+            dense, curve, band_lo, band_hi, x0, x0_err, scale, scale_err, mslope, mslope_err = fit
+            axR.plot(10**dense, curve, "-", lw=1.8, color=color, zorder=4)
+            fit_scale[j] = scale
+            fit_scale_err[j] = scale_err
+            fit_x0[j] = x0
+            fit_x0_err[j] = x0_err
 
-    fit = logistic_fit_with_band(log_widths, y_arr, ~fb_arr, rng)
-    if fit is not None:
-        dense, curve, band_lo, band_hi, floor, floor_err, scale, scale_err, mslope, mslope_err = fit
-        axR.plot(10**dense, curve, "-", lw=1.8, color=color, zorder=4)
-        fit_scale[j] = scale
-        fit_scale_err[j] = scale_err
+    sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=right_cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=axR)
+    cbar.set_label(r"$r_{\rm min}/r_{\rm HII}$")
 
-sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=right_cmap)
-sm.set_array([])
-cbar = fig.colorbar(sm, ax=axR)
-cbar.set_label(r"$r_{\rm min}/r_{\rm HII}$")
+    axR.axvline(0.2, color="0.25", ls=":", lw=1.1)
+    axR.axhline(0, color="0.25", ls="--", lw=1.1)
+    axR.set_xscale("log")
+    axR.set_xlabel(r"$\Delta r_{\rm shell}/r_{\rm HII}$")
+    axR.grid(True, axis="y", ls="--", alpha=0.4)
+    axR.set_ylim(axL.get_ylim())
 
-axR.axvline(0.2, color="0.25", ls=":", lw=1.1)
-axR.axhline(0, color="0.25", ls="--", lw=1.1)
-axR.set_xscale("log")
-axR.set_xlabel(r"$\Delta r_{\rm shell}/r_{\rm HII}$")
-axR.grid(True, axis="y", ls="--", alpha=0.4)
-axR.set_ylim(axL.get_ylim())
-
-# --- Right (new): fitted logistic `scale` vs r_min/r_HII, log-log ---
-# scale sets how steep/wide the logistic transition is; checking it across
-# r_min values answers whether the floor-vs-r_min trend (middle panel) is a
-# fair comparison -- floor and scale both shrink together as r_min
-# coarsens, so floor alone conflates "how far it falls" with "how steep".
-good = np.isfinite(fit_scale)
-axS.errorbar(
-    ratios[good], fit_scale[good], yerr=fit_scale_err[good],
-    fmt="o", ms=6.0, lw=1.5, capsize=3, color="#31688e", zorder=3,
-)
-if np.count_nonzero(good) >= 2:
-    log_ratio = np.log10(ratios[good])
-    log_scale = np.log10(fit_scale[good])
-    power, intercept = np.polyfit(log_ratio, log_scale, 1)
-    dense_ratio = np.geomspace(ratios[good].min(), ratios[good].max(), 100)
-    axS.plot(
-        dense_ratio, 10 ** (intercept + power * np.log10(dense_ratio)),
-        "-", lw=1.8, color="crimson", zorder=2, label=fr"power-law fit ($\propto r_{{\rm min}}^{{{power:.2f}}}$)",
+    # --- Right (new): fitted logistic `scale` (left axis) and `x0` (right axis)
+    # vs r_min/r_HII, both floor-fixed fits -- scale sets how steep/wide the
+    # logistic transition is, x0 sets where (in log-width) it's centered;
+    # plotting both shows whether r_min moves the transition's location, its
+    # steepness, or both.
+    good = np.isfinite(fit_scale)
+    p1 = axS.errorbar(
+        ratios[good], fit_scale[good], yerr=fit_scale_err[good],
+        fmt="o", ms=6.0, lw=1.5, capsize=3, color=scale_color, zorder=3, label=r"scale (left axis)",
     )
-    axS.legend(fontsize=9)
-axS.set_xscale("log")
-axS.set_yscale("log")
-ylim = (0.1, 1.0)
-for j in np.flatnonzero(~good):
-    axS.scatter(ratios[j], ylim[0], marker="x", s=60, color="0.5", zorder=5, clip_on=False)
-axS.set_ylim(ylim)
-axS.set_xlabel(r"$r_{\rm min}/r_{\rm HII}$")
-axS.set_ylabel(r"logistic growth rate ($r$)")
-axS.grid(True, which="both", axis="y", ls="--", alpha=0.4)
+    if np.count_nonzero(good) >= 2:
+        log_ratio = np.log10(ratios[good])
+        log_scale = np.log10(fit_scale[good])
+        power, intercept = np.polyfit(log_ratio, log_scale, 1)
+        dense_ratio = np.geomspace(ratios[good].min(), ratios[good].max(), 100)
+        scale_fit_line, = axS.plot(
+            dense_ratio, 10 ** (intercept + power * np.log10(dense_ratio)),
+            "-", lw=1.5, color=scale_color, alpha=0.6, zorder=2,
+            label=fr"scale $\propto (r_{{\rm min}}/r_{{\rm HII}})^{{{power:.2f}}}$",
+        )
+    axS.set_xscale("log")
+    axS.set_yscale("log")
+    ylim = (0.1, 1.0)
+    for j in np.flatnonzero(~good):
+        axS.scatter(ratios[j], ylim[0], marker="x", s=60, color="0.5", zorder=5, clip_on=False)
+    axS.set_ylim(ylim)
+    axS.set_xlabel(r"$r_{\rm min}/r_{\rm HII}$")
+    axS.set_ylabel(r"logistic growth rate ($r$)", color=scale_color)
+    axS.tick_params(axis="y", labelcolor=scale_color)
+    axS.grid(True, which="both", axis="y", ls="--", alpha=0.4)
 
-fig.tight_layout()
+    axS2 = axS.twinx()
+    good_x0 = np.isfinite(fit_x0)
+    p2 = axS2.errorbar(
+        ratios[good_x0], fit_x0[good_x0], yerr=fit_x0_err[good_x0],
+        fmt="s", ms=6.0, lw=1.5, capsize=3, color=x0_color, zorder=3, label=r"$x_0$ (right axis)",
+    )
+    if np.count_nonzero(good_x0) >= 2:
+        log_ratio_x0 = np.log10(ratios[good_x0])
+        slope_x0, intercept_x0 = np.polyfit(log_ratio_x0, fit_x0[good_x0], 1)
+        dense_ratio_x0 = np.geomspace(ratios[good_x0].min(), ratios[good_x0].max(), 100)
+        x0_fit_line, = axS2.plot(
+            dense_ratio_x0, intercept_x0 + slope_x0 * np.log10(dense_ratio_x0),
+            "--", lw=1.5, color=x0_color, alpha=0.6, zorder=2,
+            label=fr"$x_0 \propto {slope_x0:.2f}\,\log_{{10}}(r_{{\rm min}}/r_{{\rm HII}})$",
+        )
+    axS2.set_ylabel(r"logistic $x_0$ ($\log_{10}\Delta r_{\rm shell}/r_{\rm HII}$)", color=x0_color)
+    axS2.tick_params(axis="y", labelcolor=x0_color)
 
-out = BASE_DIR / "random_point_count_dK_dlogr_fixed_rmin_comparison.png"
-fig.savefig(out, dpi=220)
-plt.close(fig)
-print(f"\nWrote {out.relative_to(REPO_ROOT)}")
+    lines = [p1, scale_fit_line, p2, x0_fit_line]
+    axS.legend(lines, [line.get_label() for line in lines], fontsize=8, loc="lower center")
+
+
+
+def main() -> None:
+    style_path = REPO_ROOT / "custom_plot.mplstyle"
+    try:
+        plt.style.use(str(style_path))
+    except OSError:
+        pass
+    fig, (axL, axR, axS) = plt.subplots(1, 3, figsize=(21.0, 6.0))
+    draw_panels(fig, axL, axR, axS)
+    fig.tight_layout()
+    out = BASE_DIR / "random_point_count_dK_dlogr_fixed_rmin_comparison.png"
+    fig.savefig(out, dpi=220)
+    plt.close(fig)
+    print(f"\nWrote {out.relative_to(REPO_ROOT)}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,34 @@
+region,line,n_annuli,rho_max_covered,centre_dx,centre_dy,chi2_catalogue_centre,best_delta,delta_1sig_lo,delta_1sig_hi,best_s,s_1sig_lo,s_1sig_hi,chi2_min,dof,error_inflation,bkg_over_peak,flags
+BFS65,NII,26,1.975,-0.25,0.25,14.932,0.80042,0.19255,1,1.7983,0.71195,2.5,10.523,20,1,0.38575,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge
+BFS65,SII,26,1.975,-0.1,-0.05,11.167,0.39259,0.3435,0.42915,1.8357,1.7616,1.9527,7.7382,20,1,0.83836,FOV does not reach beyond the fitted shell edge
+BFS65,SIII,26,1.975,-0.1,-0.15,13.411,0.53616,0.31423,1,0.83944,0.82233,0.8569,9.7373,20,1,0.28092,Delta 1-sigma hits grid edge
+Flame_nebula,NII,19,0.975,0.35,-0.35,33.401,0.76556,0.27494,1,1.8357,0.43434,2.5,1.2653,13,1,-1.4503,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge; centre at the edge of the search box
+Flame_nebula,SII,19,0.975,0.1,-0.3,24.556,0.9148,0.005,1,2.3991,0.4,2.5,1.6314,13,1,-1.3382,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge
+Flame_nebula,SIII,19,0.975,0.35,0.1,48.6,0.80042,0.61277,1,0.68323,0.60382,0.74188,4.3352,13,1,0.12195,Delta 1-sigma hits grid edge; centre at the edge of the search box
+Gum31,NII,31,1.625,0.1,0.25,20.786,0.9148,0.58609,1,0.72676,0.71195,1.1432,2.3191,25,1,0.27703,Delta 1-sigma hits grid edge
+Gum31,SII,31,1.625,0.05,0.25,16.434,0.70034,0.51281,1,0.71195,0.6693,1.0747,2.8552,25,1,0.43986,Delta 1-sigma hits grid edge
+Gum31,SIII,31,1.625,0.3,-0.2,38.566,0.56057,0.44869,0.64067,0.93047,0.9115,0.94983,4.1266,25,1,0.13419,
+Gum38a,NII,37,1.975,-0.35,0.2,88.774,0.9148,0.73223,1,0.98976,0.9115,1.0314,7.5541,31,1,0.27338,Delta 1-sigma hits grid edge; centre at the edge of the search box
+Gum38a,SII,37,1.975,-0.25,0.25,78.641,0.9148,0.73223,1,0.93047,0.8569,0.98976,5.8125,31,1,0.26058,Delta 1-sigma hits grid edge
+Gum38a,SIII,37,1.975,-0.35,0.35,44.636,0.9148,0.73223,1,0.96959,0.93047,0.98976,3.1338,31,1,0.3818,Delta 1-sigma hits grid edge; centre at the edge of the search box
+Orion,NII,40,1.975,-0.3,-0.35,360.61,0.66984,0.49048,0.83686,1.1199,1.0747,1.167,27.62,34,1,0.023239,centre at the edge of the search box
+Orion,SII,40,1.975,-0.3,-0.35,196.13,0.30055,0.17615,0.58609,0.96959,0.93047,1.0103,13.444,34,1,0.05562,centre at the edge of the search box
+Orion,SIII,40,1.975,0.1,-0.35,261.62,0.76556,0.58609,0.83686,1.1199,1.0747,1.1199,33.919,34,1,0.0047716,centre at the edge of the search box
+RCW52,NII,31,1.975,0.35,0.35,16.134,0.73223,0.27494,1,1.1913,1.0747,1.2935,5.7035,25,1,0.24296,Delta 1-sigma hits grid edge; centre at the edge of the search box
+RCW52,SII,31,1.975,0.35,0.35,16.36,0.76556,0.26297,1,1.2672,1.0971,1.3479,5.9364,25,1,0.31497,Delta 1-sigma hits grid edge; centre at the edge of the search box
+RCW52,SIII,31,1.975,0.35,0.35,16.839,0.39259,0.005,1,1.0528,0.8569,1.1432,4.9301,25,1,0.2233,Delta 1-sigma hits grid edge; centre at the edge of the search box
+RCW60,NII,31,1.575,0.3,-0.35,58.747,0.95645,0.87497,1,1.2672,1.1913,1.2935,3.2451,25,1,0.29653,Delta 1-sigma hits grid edge; centre at the edge of the search box
+RCW60,SII,31,1.575,-0.15,-0.15,47.626,0.83686,0.56057,1,0.82233,0.80557,0.87473,5.8112,25,1,0.36239,Delta 1-sigma hits grid edge
+RCW60,SIII,31,1.575,-0.15,-0.15,24.845,0.83686,0.41046,1,0.77307,0.68323,1.1199,4.1225,25,1,0.1812,Delta 1-sigma hits grid edge
+RCW79,NII,37,1.975,-0,0.25,31.467,0.87497,0.73223,1,0.82233,0.82233,0.82233,8.9516,31,1,0.28523,Delta 1-sigma hits grid edge
+RCW79,SII,37,1.975,-0,0.25,38.846,0.9148,0.53616,1,0.83944,0.82233,0.8569,6.7768,31,1,0.61721,Delta 1-sigma hits grid edge
+RCW79,SIII,37,1.975,-0.35,-0.35,67.407,0.53616,0.41046,0.73223,1.0528,0.82233,1.2672,13.681,31,1,0.1356,centre at the edge of the search box
+RCW87,NII,22,1.975,0.3,0.1,3.6724,0.51281,0.32854,1,1.376,1.1913,1.4046,2.7283,16,1,0.43116,Delta 1-sigma hits grid edge
+RCW87,SII,22,1.975,0.3,0.1,4.5401,0.51281,0.32854,1,1.376,1.2161,2.5,1.6967,16,1,0.60744,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge
+RCW87,SIII,22,1.975,-0.2,0.3,5.4774,0.73223,0.56057,1,2.5,1.8739,2.5,3.7468,16,1,-1.3055,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge
+Rosette_nebula,NII,19,0.925,-0.15,-0.3,46.275,0.76556,0.39259,0.87497,0.93047,0.87473,2.5,0.68801,13,1,0.34349,s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge
+Rosette_nebula,SII,19,0.925,-0.15,-0.3,31.603,0.9148,0.005,1,2.3023,0.47163,2.5,0.91233,13,1,-2.0769,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge
+Rosette_nebula,SIII,19,0.925,-0.35,-0.35,241.61,0.32854,0.14741,1,0.94983,0.82233,2.5,1.3998,13,1,0.21257,Delta 1-sigma hits grid edge; s 1-sigma hits grid edge; FOV does not reach beyond the fitted shell edge; centre at the edge of the search box
+Sh2-311,NII,28,1.375,-0.35,-0.35,72.785,1,0.83686,1,0.62921,0.54475,0.6423,11.68,22,1,0.044627,Delta 1-sigma hits grid edge; centre at the edge of the search box
+Sh2-311,SII,28,1.375,-0.35,-0.35,102.9,0.87497,0.80042,1,0.62921,0.57946,0.6423,8.7252,22,1,0.075024,Delta 1-sigma hits grid edge; centre at the edge of the search box
+Sh2-311,SIII,28,1.375,-0.25,-0.35,49.136,1,0.87497,1,0.68323,0.61638,0.69744,12.971,22,1,0.01348,Delta 1-sigma hits grid edge; centre at the edge of the search box

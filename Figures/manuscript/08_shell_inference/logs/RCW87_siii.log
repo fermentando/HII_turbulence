@@ -1,0 +1,6 @@
+    SIII: 41 fibres with S/N > 20; -0 overlap; -1 velocity outlier(s) [38.0] -> 40 used; gradient 2.125 km/s/pc removed
+RCW87 siii: 40 fibres, R_HII=3.93 pc, 37" = 0.1233 R_HII, M=1.00, floors [0.1233]
+/Users/fernando/PhDResearch/LVM stuff/manuscript_pipeline/00_core/vsf_module.py:198: RuntimeWarning: Mean of empty slice
+  K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+  floor 0.1233: only 0 bins in the first K>3 run; dropped
+Saved Figures/manuscript/08_shell_inference/data/RCW87_SIII_multifloor.npz (0 floors, 0 jackknife replicates)

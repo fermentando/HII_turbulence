@@ -1,0 +1,12 @@
+object,radius_pc,source,source_url,notes
+BFS65,6.358,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=388 arcsec converted with Heliocentric_distance=3.38 kpc"
+Flame_nebula,1.840,Flame Nebula online radius,https://en.wikipedia.org/wiki/Flame_Nebula,"Online radius 6 ly converted to pc"
+Gum31,8.293,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=622 arcsec converted with Heliocentric_distance=2.75 kpc"
+Gum38a,5.406,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=446 arcsec converted with Heliocentric_distance=2.50 kpc"
+Orion,3.987,Orion Nebula online radius,https://en.wikipedia.org/wiki/Orion_Nebula,"Online radius 13 ly converted to pc"
+RCW52,3.762,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=333 arcsec converted with Heliocentric_distance=2.33 kpc"
+RCW60,6.534,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=606 arcsec converted with Heliocentric_distance=2.224 kpc"
+RCW79,9.713,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=477 arcsec converted with Heliocentric_distance=4.20 kpc"
+RCW87,2.435,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=186 arcsec converted with Heliocentric_distance=2.70 kpc"
+Rosette_nebula,19.936,Rosette Nebula online radius,https://en.wikipedia.org/wiki/Rosette_Nebula,"Online radius 65 ly converted to pc"
+Sh2-311,24.088,WISE HII catalog radius via local extra_HII_regions.fits,https://arxiv.org/abs/1312.6202,"Rad=941 arcsec converted with Heliocentric_distance=5.28 kpc"

@@ -1,0 +1,25 @@
+
+RCW52 nii: 4340 fibres, sigma_loc (200 neighbours) median 0.99 km/s, M=1.62
+  floor   stored   control  normalised
+  0.0771  -1.299   -1.299    -0.604
+  0.1089  -1.363   -1.363    -0.404
+  uncorrected      : p=2 best v=4.88 w=0.154  1s w 0.062-0.185 v 1.35-100.00  area 0.82 dex^2  chi2 0.00  slope errs [0.55, 0.65]
+  mixing-corrected : p=2 best v=0.63 w=0.010  1s w 0.010-1.227 v 0.14-1.02  area 2.83 dex^2  chi2 0.94  slope errs [0.3, 0.22]
+
+RCW52 sii: 3381 fibres, sigma_loc (200 neighbours) median 1.58 km/s, M=1.47
+  floor   stored   control  normalised
+  0.0771  -1.618   -1.618    +0.037
+  0.1089  -1.739   -1.739    +0.068
+  uncorrected      : p=2 best v=100.00 w=0.161  1s w 0.091-0.178 v 0.95-100.00  area 1.88 dex^2  chi2 0.00  slope errs [1.1, 1.25]
+  mixing-corrected : p=2 best v=0.95 w=1.500  1s w 0.458-1.500 v 0.10-1.35  area 0.87 dex^2  chi2 0.54  slope errs [0.24, 0.26]
+
+RCW52 siii: 2674 fibres, sigma_loc (200 neighbours) median 1.36 km/s, M=1.27
+  floor   stored   control  normalised
+  0.0771  -0.735   -0.735    +0.448
+  0.1089  -0.602   -0.602    +0.827
+  uncorrected      : p=2 best v=1.14 w=0.010  1s w 0.010-1.500 v 0.10-100.00  area 6.59 dex^2  chi2 0.01  slope errs [1.04, 1.07]
+  mixing-corrected : p=2 best v=0.10 w=0.010  1s w 0.010-1.500 v 0.10-100.00  area 6.59 dex^2  chi2 0.28  slope errs [2.04, 1.99]
+
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW52_k200.png
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW52_k200.csv
+Wrote /Users/fernando/PhDResearch/LVM stuff/Figures/manuscript/08_shell_inference/mixing_correction/RCW52_k200_fits.npz

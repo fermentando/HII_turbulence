@@ -1,0 +1,7 @@
+region,line,k_neigh,M,version,n_floors,slope_37arcsec,best_v,best_w,w_1sig_lo,w_1sig_hi,v_1sig_lo,v_1sig_hi,area_1sig_dex2,chi2_min
+Rosette_nebula,nii,200,4.235,uncorrected,7,-5.3647,100.0,0.0183,0.0147,0.0224,2.899,100.0,0.508,4.306
+Rosette_nebula,nii,200,4.235,mixing-corrected,5,-0.4243,0.1,0.01,0.01,0.1777,0.1,0.445,1.545,7.788
+Rosette_nebula,sii,200,2.972,uncorrected,7,-2.346,5.231,0.0179,0.0125,0.0242,1.912,100.0,0.774,3.09
+Rosette_nebula,sii,200,2.972,mixing-corrected,4,-1.6082,0.1,0.01,0.01,0.9442,0.1,0.86,2.177,5.483
+Rosette_nebula,siii,200,2.681,uncorrected,6,-3.5554,1.136,0.1673,0.0462,1.5,0.922,100.0,0.972,1.909
+Rosette_nebula,siii,200,2.681,mixing-corrected,5,-0.3395,0.1,0.01,0.01,0.0179,0.1,0.461,0.386,13.37

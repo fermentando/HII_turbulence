@@ -1,0 +1,7 @@
+region,line,k_neigh,M,version,n_floors,slope_37arcsec,best_v,best_w,w_1sig_lo,w_1sig_hi,v_1sig_lo,v_1sig_hi,area_1sig_dex2,chi2_min
+Flame_nebula,nii,200,1.39,uncorrected,6,-2.3452,1.664,0.01,0.01,0.0576,1.26,3.218,0.383,2.637
+Flame_nebula,nii,200,1.39,mixing-corrected,5,-6.1176,100.0,0.01,0.01,0.0263,8.214,100.0,0.74,8.414
+Flame_nebula,sii,200,1.236,uncorrected,6,-1.6233,1.664,0.0377,0.01,0.1188,0.652,7.934,2.94,2.01
+Flame_nebula,sii,200,1.236,mixing-corrected,6,-3.1666,22.478,0.0612,0.0462,0.1288,1.448,100.0,2.471,1.279
+Flame_nebula,siii,200,1.248,uncorrected,6,0.162,7.663,0.1607,0.1119,0.2658,1.846,100.0,1.751,5.542
+Flame_nebula,siii,200,1.248,mixing-corrected,5,-3.794,100.0,0.0827,0.037,0.1483,4.88,100.0,1.655,2.561

@@ -6,6 +6,7 @@ and related statistics (PDF, C2, C4, intermittency).
 """
 
 import itertools
+import warnings
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.interpolate import griddata
@@ -196,6 +197,73 @@ def kurtosis_block_jackknife(x, y, vel, bin_edges, n_blocks_per_side=5, min_bloc
     with np.errstate(invalid='ignore'):
         K_err = np.sqrt((n_rep - 1) / n_rep * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
     return K, K_err, reps, tot['n']
+
+
+def vsf_orders_block_jackknife(x, y, vel, bin_edges, orders=(1, 2, 3, 4, 5), n_blocks_per_side=5,
+                               min_block_points=20, max_points=10000, seed=0, chunk=500):
+    """Structure functions S_p = <|dv|^p> for several orders from the SAME pairs, with block-jackknife errors.
+
+    Same pair loop, blocks and subsampling as kurtosis_block_jackknife: |dv|^p is accumulated per
+    (bin, block of i), (bin, block of j) and (bin, shared block), so every leave-one-block-out
+    curve follows from one pass. A replicate drops the same block for every order, so the
+    replicates of different orders stay paired (e.g. to refit an ESS slope log S_p vs log S_3
+    on each replicate). Fields with more than `max_points` fibres use one seeded subsample.
+
+    Returns S (n_orders x nbins), S_err (jackknife), S_replicates (n_rep x n_orders x nbins), counts.
+    """
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    vel = np.asarray(vel, float)
+    if len(x) > max_points:
+        idx = np.random.default_rng(seed).choice(len(x), size=max_points, replace=False)
+        x, y, vel = x[idx], y[idx], vel[idx]
+    nb = n_blocks_per_side
+    xi = np.clip(np.searchsorted(np.linspace(x.min(), x.max(), nb + 1), x, side='right') - 1, 0, nb - 1)
+    yi = np.clip(np.searchsorted(np.linspace(y.min(), y.max(), nb + 1), y, side='right') - 1, 0, nb - 1)
+    block = xi * nb + yi
+    n_blk = nb * nb
+    nbins = len(bin_edges) - 1
+    edges2 = np.asarray(bin_edges, float) ** 2
+    orders = list(orders)
+
+    # sums[q][0] = by block of i, [1] = by block of j, [2] = pairs with both fibres in the same block
+    sums = {q: np.zeros((3, nbins * n_blk)) for q in ['n'] + orders}
+    n = len(x)
+    for start in range(0, n - 1, chunk):
+        i = np.arange(start, min(start + chunk, n - 1))
+        jj = np.arange(n)
+        ii, jj = np.nonzero(jj[None, :] > i[:, None])
+        ii = i[ii]
+        dr2 = (x[ii] - x[jj]) ** 2 + (y[ii] - y[jj]) ** 2
+        b = np.searchsorted(edges2, dr2) - 1
+        ok = (b >= 0) & (b < nbins)
+        ii, jj, b = ii[ok], jj[ok], b[ok]
+        adv = np.abs(vel[ii] - vel[jj])
+        weights = {'n': None, **{p: adv ** p for p in orders}}
+        bi, bj = block[ii], block[jj]
+        same = bi == bj
+        for k, key in ((0, b * n_blk + bi), (1, b * n_blk + bj), (2, b[same] * n_blk + bi[same])):
+            for q, w in weights.items():
+                if k == 2 and w is not None:
+                    w = w[same]
+                sums[q][k] += np.bincount(key, weights=w, minlength=nbins * n_blk)
+
+    S = {q: v.reshape(3, nbins, n_blk) for q, v in sums.items()}
+    tot = {q: S[q][0].sum(axis=1) for q in S}
+
+    def moments(t):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return np.array([np.where(t['n'] > 0, t[p] / t['n'], np.nan) for p in orders])
+
+    S_all = moments(tot)
+    eligible = [blk for blk in range(n_blk) if np.count_nonzero(block == blk) >= min_block_points]
+    reps = np.array([moments({q: tot[q] - S[q][0][:, blk] - S[q][1][:, blk] + S[q][2][:, blk] for q in S})
+                     for blk in eligible]).reshape(-1, len(orders), nbins)
+    n_rep = reps.shape[0]
+    with np.errstate(invalid='ignore'), warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)  # bins empty in every replicate -> NaN
+        S_err = np.sqrt((n_rep - 1) / max(n_rep, 1) * np.nansum((reps - np.nanmean(reps, axis=0)) ** 2, axis=0))
+    return S_all, S_err, reps, tot['n']
 
 
 def flag_overlap_fibres(ra, dec, dist, tol=0.05):
