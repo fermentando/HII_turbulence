@@ -149,7 +149,7 @@ def main():
     aD.axhline(2 / 3, color="0.4", lw=0.7, ls="-.")
     aD.set(xscale="log", xlabel=r"$\Delta r_{\rm shell}/r_{\rm HII}$",
            ylabel=fr"$d\ln S_2/d\ln\ell$ over $\ell$={WIN[0]:g}-{WIN[1]:g}",
-           title=fr"D  $S_2$ index; grey: observed 16-84\\% (N={len(obs)})")
+           title=fr"D  $S_2$ index; grey: observed 16-84\% (N={len(obs)})")
     aD.legend(fontsize=8, ncol=2)
     for ax in axes.flat:
         ax.title.set_fontsize(12)
