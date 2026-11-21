@@ -1,0 +1,31 @@
+region,line,n_bins,L_out_over_rhii,noise_N2,best_delta,delta_1sig_lo,delta_1sig_hi,best_lambda,lambda_1sig_lo,lambda_1sig_hi,v_turb_from_S2,v_bulk_at_best,chi2_K,n_data,flags
+BFS65,NII,6,8.3377,1.5011,0.005,0.005,0.40909,0.82105,0.57292,1.1766,1.8955,1.5563,14.265,6,Delta 1-sigma hits grid edge
+BFS65,SII,6,8.1773,3.2596,0.33779,0.005,0.40909,0.89834,0.62685,1.1766,2.3826,2.1404,3.5926,6,Delta 1-sigma hits grid edge
+BFS65,SIII,6,5.4947,2.0831,0.005,0.005,0.19017,1.0754,0.82105,1.4086,2.3826,2.5623,20.023,6,Delta 1-sigma hits grid edge; poor fit
+Flame_nebula,NII,10,1.6696,1.2259,0.005,0.005,0.049771,30,25.06,30,0.2,6,15.325,10,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge
+Flame_nebula,SII,10,1.6677,2.0967,0.005,0.005,0.072998,30,15.982,30,0.2,6,39.182,10,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge; poor fit
+Flame_nebula,SIII,10,1.3076,1.9484,0.005,0.005,0.060276,30,27.419,30,0.2,6,17.941,10,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge
+Gum31,NII,8,3.1234,1.6534,0.005,0.005,0.088405,1.6862,1.2874,1.6862,1.5666,2.6417,79.549,8,Delta 1-sigma hits grid edge; poor fit
+Gum31,SII,8,3.1231,3.0415,0.005,0.005,0.10706,1.4086,1.1766,1.4086,1.7564,2.474,74.466,8,Delta 1-sigma hits grid edge; poor fit
+Gum31,SIII,8,2.8056,2.6016,0.005,0.005,0.088405,1.6862,1.5412,2.4165,1.7564,2.9617,28.821,8,Delta 1-sigma hits grid edge; poor fit
+Gum38a,NII,8,4.6807,1.4255,0.005,0.005,0.10706,1.1766,0.9829,1.4086,3.6237,4.2638,86.407,8,Delta 1-sigma hits grid edge; poor fit
+Gum38a,SII,8,4.6632,2.81,0.005,0.005,0.088405,1.1766,1.0754,1.2874,3.9107,4.6015,58.799,8,Delta 1-sigma hits grid edge; poor fit
+Gum38a,SIII,8,4.5319,2.4211,0.005,0.005,0.15703,1.1766,0.89834,1.5412,5.9477,6.9984,39.263,8,Delta 1-sigma hits grid edge; poor fit
+Orion,NII,9,24.806,1.6595,0.005,0.005,0.33779,0.62685,0.39978,1.0754,1.3451,0.84315,27.37,9,Delta 1-sigma hits grid edge; poor fit
+Orion,SII,9,25.336,2.9072,0.10706,0.005,0.15703,30,19.133,30,0.2,6,28.486,9,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge; poor fit
+Orion,SIII,10,21.796,2.7191,0.005,0.005,0.10706,0.89834,0.62685,0.9829,2.9949,2.6904,14.019,10,Delta 1-sigma hits grid edge
+RCW52,NII,7,6.2636,1.9332,0.005,0.005,0.49543,0.89834,0.52363,1.6862,0.85131,0.76476,42.623,7,Delta 1-sigma hits grid edge; poor fit
+RCW52,SII,7,6.2421,3.4019,0.005,0.005,0.6,0.75041,0.30522,2.0186,1.508,1.1316,18.809,7,Delta 1-sigma hits grid edge; poor fit
+RCW52,SIII,7,5.89,3.0231,0.005,0.005,0.6,1.0754,0.01,2.8929,0.99153,1.0663,18.202,7,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge
+RCW60,NII,10,3.0164,1.5644,0.005,0.005,0.072998,1.5412,1.1766,2.644,1.0301,1.5875,0.7589,10,Delta 1-sigma hits grid edge
+RCW60,SII,10,3.0015,2.9495,0.005,0.005,0.088405,1.6862,1.2874,2.0186,1.0701,1.8044,6.6244,10,Delta 1-sigma hits grid edge
+RCW60,SIII,10,2.6144,2.279,0.005,0.005,0.10706,2.2086,1.4086,17.487,0.85131,1.8802,5.142,10,Delta 1-sigma hits grid edge
+RCW79,NII,8,4.1459,1.4482,0.005,0.005,0.10706,1.4086,1.0754,1.6862,2.2935,3.2306,11.208,8,Delta 1-sigma hits grid edge
+RCW79,SII,8,4.1266,2.5495,0.005,0.005,0.33779,0.82105,0.62685,1.2874,2.3826,1.9562,3.3423,8,Delta 1-sigma hits grid edge
+RCW79,SIII,8,2.1276,2.3532,0.19017,0.088405,0.27892,7.782,3.1652,30,0.51866,4.0362,3.9697,8,lambda 1-sigma hits grid edge
+Rosette_nebula,NII,12,1.6885,1.6384,0.005,0.005,0.019105,30,30,30,0.2,6,119.25,12,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge; poor fit
+Rosette_nebula,SII,12,1.6591,2.8974,0.005,0.005,0.023137,2.8929,2.2086,5.4302,1.8246,5.2784,109.62,12,Delta 1-sigma hits grid edge; poor fit
+Rosette_nebula,SIII,12,1.1995,2.6906,0.005,0.005,0.6,0.9829,0.01,2.2086,1.6275,1.5996,23.922,12,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge
+Sh2-311,NII,10,1.4182,2.2958,0.005,0.005,0.072998,17.487,4.1458,22.904,0.2,3.4973,7.91,10,Delta 1-sigma hits grid edge
+Sh2-311,SII,10,1.3432,3.6835,0.005,0.005,0.15703,1.0754,0.68586,1.6862,1.7564,1.8888,2.8749,10,Delta 1-sigma hits grid edge
+Sh2-311,SIII,10,1.1954,4.6578,0.6,0.40909,0.6,1.845,1.2874,30,1.7564,3.2405,27.303,10,Delta 1-sigma hits grid edge; lambda 1-sigma hits grid edge; poor fit
