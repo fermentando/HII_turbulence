@@ -22,6 +22,10 @@ Outputs (Figures/manuscript/08_shell_inference/slope_lambda/):
   slope_lambda_calibration.png  per region: s_mod(lambda) for each line (band = range over Delta), observed slope
                                 (horizontal band), inferred lambda (star)
   slope_lambda_vs_joint.png     lambda and Delta from this method vs the joint centroid fit (--joint-run)
+  slope_lambda_probability.png  per region: P(lambda) from the slope (profiled over Delta) and P(Delta) from S2 at
+                                lambda_best, P = exp(-dchi2/2) normalised to peak 1; thin lines: the joint centroid
+                                fit's profiles of the same parameter (--joint-run)
+  <region>_<LINE>_profiles.npz  dchi2(lambda), dchi2(Delta)
 
 Run from the repo root:
     python manuscript_pipeline/08_shell_inference/fit_slope_lambda.py [--a 0] [--joint-run centroid_joint_v_a0_lammin1]
@@ -115,7 +119,8 @@ def fit_line(region, X, a):
            "slope_model_min": s_mod.min(), "slope_model_max": s_mod.max(),
            "delta_S2": D_GRID[iD], "delta_lo": d_lo, "delta_hi": d_hi, "chi2_S2": chi_S.min(), "n_S2": n,
            "flags": "; ".join(flags)}
-    plot = dict(s_band=(s_mod[band].min(0), s_mod[band].max(0)), s_pt=s_pt)
+    plot = dict(s_band=(s_mod[band].min(0), s_mod[band].max(0)), s_pt=s_pt, prof_lam=prof - prof.min(),
+                prof_delta=chi_S - chi_S.min())
     return row, plot
 
 
@@ -187,6 +192,46 @@ def plot_vs_joint(rows, joint_run):
     plt.close(fig)
 
 
+def plot_probability(rows, plots, joint_run):
+    run = OUT_BASE / joint_run
+    regions = list(dict.fromkeys(r["region"] for r in rows))
+    nc = 4
+    nr = int(np.ceil(len(regions) / nc))
+    fig, axes = plt.subplots(2 * nr, nc, figsize=(4.5 * nc, 2.9 * 2 * nr), squeeze=False)
+    for i, region in enumerate(regions):
+        aL, aD = axes[2 * (i // nc), i % nc], axes[2 * (i // nc) + 1, i % nc]
+        for r in [r for r in rows if r["region"] == region]:
+            X, p, c = r["line"], plots[(region, r["line"])], LINE_COLORS[r["line"]]
+            aL.plot(LAM_GRID, np.exp(-0.5 * p["prof_lam"]), LINESTYLES[X], color=c, lw=2, label=LINE_LABELS[X])
+            aD.plot(D_GRID, np.exp(-0.5 * p["prof_delta"]), LINESTYLES[X], color=c, lw=2)
+            jm = run / f"{region}_{X}_map.npz"
+            if jm.exists():
+                m = np.load(jm)
+                aL.plot(m["lambda_grid"], np.exp(-0.5 * m["dm2lnL"].min(0)), LINESTYLES[X], color=c, lw=0.9, alpha=0.7)
+                aD.plot(m["delta_grid"], np.exp(-0.5 * m["dm2lnL"].min(1)), LINESTYLES[X], color=c, lw=0.9, alpha=0.7)
+        for ax in (aL, aD):
+            ax.set(xscale="log", ylim=(0, 1.08))
+            ax.axhline(np.exp(-0.5), color="0.6", lw=0.6, ls=":")
+        aL.set(xlim=(LAM_GRID[0], LAM_GRID[-1]), title=region.replace("_", " "), xlabel=r"$\lambda_{\rm eff}$")
+        aD.set(xlim=(D_GRID[0], D_GRID[-1]), xlabel=r"$\Delta r_{\rm shell}/r_{\rm HII}$")
+        if i % nc == 0:
+            aL.set_ylabel(r"$P(\lambda)$ from slope")
+            aD.set_ylabel(r"$P(\Delta)$ from $S_2$")
+        if i == 0:
+            aL.plot([], [], color="0.4", lw=2, label="two-step")
+            aL.plot([], [], color="0.4", lw=0.9, label="joint fit")
+            aL.legend(fontsize=7.5, loc="upper left")
+    for j in range(len(regions), nr * nc):
+        axes[2 * (j // nc), j % nc].axis("off")
+        axes[2 * (j // nc) + 1, j % nc].axis("off")
+    fig.suptitle(r"Profile probabilities $P=e^{-\Delta\chi^2/2}$ (peak 1; dotted: $1\sigma$ level). Thick: two-step "
+                 r"($\lambda$ from the $\ln K$ slope, $\Delta$ from $S_2$ at $\lambda_{\rm best}$); thin: joint centroid fit "
+                 fr"({joint_run.removeprefix('centroid_joint_v_')}, profiled)", fontsize=11)
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "slope_lambda_probability.png", dpi=150)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--a", type=float, default=0.0, choices=[float(x) for x in A_MOM])
@@ -210,6 +255,8 @@ def main():
             row, p = out
             rows.append(row)
             plots[(region, X)] = p
+            np.savez(OUT_DIR / f"{region}_{X}_profiles.npz", lambda_grid=LAM_GRID, dchi2_lambda=p["prof_lam"],
+                     delta_grid=D_GRID, dchi2_delta=p["prof_delta"], lambda_best=row["lambda_slope"])
             print(f"{region:15s} {X:4s} slope={row['slope_obs']:+.2f}±{row['slope_err']:.2f} "
                   f"(model {row['slope_model_min']:+.2f}..{row['slope_model_max']:+.2f})  "
                   f"lam={row['lambda_slope']:.2f} [{row['lambda_lo']:.2f},{row['lambda_hi']:.2f}]  "
@@ -224,6 +271,7 @@ def main():
     if args.region is None:
         plot_calibration(rows, plots)
         plot_vs_joint(rows, args.joint_run)
+        plot_probability(rows, plots, args.joint_run)
     print(f"wrote {OUT_DIR}")
 
 
