@@ -86,7 +86,8 @@ KEYS_SEED = ["g2", "g4", "g2m2", "g1m1", "g3m1", "g1m3"]
 
 
 def accumulate(width, n_points):
-    cache = OUT_DIR / f"_pairs_w{width:g}_n{n_points}_s{N_SEEDS}_kmax{KMAX:g}.npz".replace(".", "p", 1)
+    tag = f"w{width:g}".replace(".", "p")
+    cache = OUT_DIR / f"_pairs_{tag}_n{n_points}_s{N_SEEDS}_kmax{KMAX:g}.npz"
     if cache.exists():
         c = np.load(cache)
         return {k: c[k] for k in c.files}
