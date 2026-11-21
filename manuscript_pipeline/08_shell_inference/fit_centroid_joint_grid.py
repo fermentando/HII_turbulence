@@ -10,7 +10,8 @@ Model (lengths in r_HII(catalogue); velocities in v_turb):
               (a = 1: symmetric shell, a = 0: only the near side visible, e.g. blister / extinction)
   sightline at sky position p, |p| = rho < 1: weights w_p(z) on a z grid (exact chord overlaps per cell)
   turbulence: unit-variance Gaussian LOS field, correlation xi(s) = 1 - D(s)/2, Kolmogorov D(s) between
-              L_out (= FOV, as in the point model) and L_IN (kurtosis_formula_tables.D_kolmogorov)
+              L_out (= FOV, as in the point model) and L_IN (kurtosis_formula_tables.D_kolmogorov; L_IN = 0:
+              no inner cutoff, k_max -> inf, the closed-form D of manuscript_notes/kurtosis_K_lambda_derivation.md)
   centroid:   V_p = sum_z w_p(z) [g(p, z) + lam mu(p, z)],  mu = z / r  (radial expansion at v_bulk)
 For a pair (p1, p2) at sky separation l, the turbulent increment is Gaussian with variance
     T = w1' X0 w1 + w2' X0 w2 - 2 w1' X_l w2,   X_l[i, j] = xi(sqrt(l^2 + (z_i - z_j)^2))
@@ -221,12 +222,13 @@ def get_moments(region, line, data, cache_dir, beam):
         c = np.load(p)
         if (np.allclose(c["ell"], data["ell"]) and np.isclose(float(c["l_out"]), data["L_out"])
                 and np.allclose(c["delta"], D_GRID) and np.allclose(c["a"], A_GRID)
-                and np.isclose(float(c["beam"]) if "beam" in c else 0.0, beam)):
+                and np.isclose(float(c["beam"]) if "beam" in c else 0.0, beam)
+                and np.isclose(float(c["l_in"]) if "l_in" in c else 0.005, L_IN)):  # old caches: l_in = 0.005
             return c["mom"]
     t0 = time.time()
     mom = centroid_moments(data["ell"], data["L_out"], beam)
     np.savez(p, mom=mom, ell=data["ell"], l_out=data["L_out"], delta=D_GRID, a=A_GRID, nz=NZ, n_pairs=N_PAIRS,
-             beam=beam)
+             beam=beam, l_in=L_IN)
     print(f"  moments {region} {line}: {time.time() - t0:.0f} s", flush=True)
     return mom
 
