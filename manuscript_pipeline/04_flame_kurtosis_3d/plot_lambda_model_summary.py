@@ -16,8 +16,13 @@ Model: thin-shell 2/K_b, 4/K_b with exact K_b, Abel-projected <D>, <D^2>, approx
 continuum D(s) for k_max -> inf (differs from k_max = 1e5 by <= 0.004 in K).
 Plateau: bins with l <= PLATEAU_FRAC * l_b (l_b = 2e^{-3/2} Delta), at least the first PLATEAU_MIN_BINS.
 
+--analytic adds the closed-form predictions as dashed lines and writes kurtosis_lambda_model_summary_analytic.png:
+  top    -- analytic K(l; lambda) of analytic_bend_slope.py (closed-form pair counts, 1D integrals of D)
+  bottom -- analytic plateau K_b [3 J2t + 4 lam^2 (lam^2 + 6)] / (Jt + 2 lam^2)^2
+            (manuscript_notes/kurtosis_K_lambda_derivation.md; thin shell, fails for Delta >~ 2/3)
+
 Run (needs matplotlib, seaborn):
-    python manuscript_pipeline/04_flame_kurtosis_3d/plot_lambda_model_summary.py [--n-points 30000]
+    python manuscript_pipeline/04_flame_kurtosis_3d/plot_lambda_model_summary.py [--n-points 30000] [--analytic]
 """
 from __future__ import annotations
 
@@ -88,10 +93,28 @@ def model_curve(d, lam):
     return np.array([tg.K_from(t["D"], t["D2"], t["Dm2"], t["m2_thin"], t["m4_thin"], lam) for t in d["terms"]])
 
 
+ANALYTIC = None  # analytic_bend_slope module when --analytic
+
+
+def k_plat_analytic(lam, d):
+    """Closed-form plateau kurtosis (kurtosis_K_lambda_derivation.md)."""
+    a = ANALYTIC
+    kb = 1.5 + 2 * np.log(2) - np.log(2 * d)
+    jt = a.J - 27 / 40 * a.A * d ** (2 / 3)
+    j2t = a.J2 - 27 / 140 * a.A ** 2 * d ** (4 / 3)
+    lam = np.asarray(lam, float)
+    with np.errstate(invalid="ignore"):
+        out = kb * (3 * j2t + 4 * lam ** 2 * (lam ** 2 + 6)) / (jt + 2 * lam ** 2) ** 2
+    return np.where(np.isinf(lam), kb, out)
+
+
 def draw_shape(ax, d):
     for lam, col in zip(SHAPE_LAMS, LAM_COLORS):
         ax.plot(d["ell"], sim_curve(d, lam), "o", ms=5, mfc=col, mec="none", alpha=0.85, zorder=3)
         ax.plot(d["ell"], model_curve(d, lam), "-", color=col, lw=2.2, zorder=4, label=lam_label(lam))
+        if ANALYTIC is not None:
+            ax.plot(d["ell"], [ANALYTIC.k_analytic(t, lam) for t in d["an_terms"]], "--", color=col, lw=1.8,
+                    zorder=5)
     ax.axhline(3, color="0.3", ls="--", lw=1.1)
     ax.set_xscale("log")
     ax.set_xlabel(r"$\ell/r_{\rm HII}$")
@@ -101,6 +124,10 @@ def draw_shape(ax, d):
     handles += [plt.Line2D([], [], color="0.3", marker="o", ls="none", ms=5),
                 plt.Line2D([], [], color="0.3", lw=2.2)]
     labels += ["simulation", "prediction"]
+    if ANALYTIC is not None:
+        handles.append(plt.Line2D([], [], color="0.3", lw=1.8, ls="--"))
+        labels[-1] = "numerical model"
+        labels.append("analytic")
     ax.legend(handles, labels, loc="lower left", fontsize=10, ncol=2)
     ax.text(0.97, 0.95, rf"$\Delta r_{{\rm shell}}/r_{{\rm HII}}={SHAPE_WIDTH:g}$" "\n"
             r"no inner cutoff ($k_{\max}\to\infty$)", transform=ax.transAxes, ha="right", va="top", fontsize=12)
@@ -112,6 +139,10 @@ def draw_plateau(ax, data):
         col = W_CMAP(W_NORM(w))
         pl = d["plat"]
         ax.plot(LAM_DENSE, [np.mean(model_curve(d, lam)[pl]) for lam in LAM_DENSE], "-", color=col, lw=2.2, zorder=3)
+        if ANALYTIC is not None:
+            ax.plot(LAM_DENSE, k_plat_analytic(LAM_DENSE, w), "--", color=col, lw=1.8, zorder=3)
+            for lam in (0.0, np.inf):
+                ax.plot(lam_plot(lam), k_plat_analytic(lam, w), "x", color=col, ms=8, mew=1.8, zorder=3)
         for lam in (0.0, np.inf):
             ax.plot(lam_plot(lam), np.mean(model_curve(d, lam)[pl]), "_", color=col, ms=16, mew=2.2, zorder=3)
         x, y, e = [], [], []
@@ -145,6 +176,10 @@ def draw_plateau(ax, data):
     handles += [plt.Line2D([], [], color="0.3", lw=2.2),
                 plt.Line2D([], [], color="0.3", marker="|", ms=12, mew=1.3, ls="none")]
     labels += ["prediction", r"single-source $1\sigma$"]
+    if ANALYTIC is not None:
+        handles.append(plt.Line2D([], [], color="0.3", lw=1.8, ls="--"))
+        labels[-2] = "numerical model"
+        labels.append("analytic plateau")
     ax.set_ylim(top=8.0)
     ax.legend(handles, labels, loc="upper left", fontsize=10, ncol=2)
 
@@ -152,6 +187,7 @@ def draw_plateau(ax, data):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-points", type=int, default=30000)
+    ap.add_argument("--analytic", action="store_true", help="overlay the closed-form predictions (dashed)")
     args = ap.parse_args()
     try:
         plt.style.use(str(REPO_ROOT / "custom_plot.mplstyle"))
@@ -159,11 +195,18 @@ def main():
         pass
     data = [load_width(w, args.n_points) for w in WIDTHS]
     fig, (axA, axB) = plt.subplots(2, 1, figsize=(8.0, 12.0), gridspec_kw={"hspace": 0.22})
+    out = OUT
+    if args.analytic:
+        global ANALYTIC
+        import analytic_bend_slope as ANALYTIC  # noqa: N811
+        d = data[WIDTHS.index(SHAPE_WIDTH)]
+        d["an_terms"] = ANALYTIC.terms(d["ell"], SHAPE_WIDTH)
+        out = OUT.with_name(OUT.stem + "_analytic.png")
     draw_shape(axA, data[WIDTHS.index(SHAPE_WIDTH)])
     draw_plateau(axB, data)
-    fig.savefig(OUT, dpi=220, bbox_inches="tight")
+    fig.savefig(out, dpi=220, bbox_inches="tight")
     plt.close(fig)
-    print(f"Wrote {OUT}")
+    print(f"Wrote {out}")
 
 
 if __name__ == "__main__":
