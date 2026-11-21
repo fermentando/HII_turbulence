@@ -30,7 +30,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import plot_gridfree_lambda_model_summary as ps  # noqa: E402
+import plot_lambda_model_summary as ps  # noqa: E402
 from gridfree_kolmogorov import I_INF, structure_function  # noqa: E402
 
 KMIN = ps.tg.KMIN

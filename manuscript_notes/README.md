@@ -60,6 +60,9 @@ cd "/Users/fernando/PhDResearch/LVM stuff"
 ## Method Notes
 
 - `manuscript_notes/vsf_breakpoint_model_selection.md` sketches the cleaner line/breakpoint fitting criterion to develop next.
+- `manuscript_notes/kurtosis_K_lambda_derivation.md`: derivation of the pair kurtosis K(l; lambda) for an expanding shell with Kolmogorov turbulence and no inner cutoff (k_max -> inf), down to the closed plateau formula (copy of `geometric_averages/00_plateau_kurtosis_summary.md`).
+- `manuscript_notes/kurtosis_K_lambda_fit_formula.md`: the analytic formula used to fit K(l; lambda): plateau, tangent slope at l = Delta, break, and the turbulence/bulk mixing form (copy of `geometric_averages/06_break_and_slope_tangent.md`).
+- K(l; lambda) model tables (`08_shell_inference/kurtosis_formula_tables.py`) and the lambda summary plot (`04_flame_kurtosis_3d/plot_lambda_model_summary.py`) use k_max -> inf and the grid-free simulations (`04_flame_kurtosis_3d/gridfree_kolmogorov.py`, `manuscript_notes/gridfree_turbulence_test.md`).
 
 ## Archived Material
 

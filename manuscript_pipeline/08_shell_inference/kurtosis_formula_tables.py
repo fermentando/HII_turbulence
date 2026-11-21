@@ -9,15 +9,19 @@ with the note's recommended combination:
     <D>, <D^2>   exact Abel projection of the shell autocorrelation C(s; Delta)            (section 4)
     <dmu^2> = 2/K_b, <dmu^4> = 4/K_b, K_b(l; Delta) exact sky-plane integral                (section 5)
     <D dmu^2> = (4/K_b) J(l),  J = int_0^1 mu0 D(sqrt(4 mu0^2 + l^2)) dmu0                  (section 6)
-and the continuous Kolmogorov structure function (section 3)
-    D(s) = 2 [1 - int k^(-5/3) sinc(ks) dk / int k^(-5/3) dk],  k in [2 pi / L_out, 2 pi / l_in].
+and the continuous Kolmogorov structure function with NO inner cutoff (k_max -> inf; section 3 and
+manuscript_notes/geometric_averages/01_turbulent_D.md)
+    D(s) = (4/3) x^(2/3) [I - G(x)],  x = k_min s,  k_min = 2 pi / L_out,  I = (9/20) Gamma(1/3),
+    G(x) = int_0^x t^(-5/3) (1 - sin t / t) dt          (gridfree_kolmogorov.structure_function).
+A real H II region's dissipation scale is far below any shell wall, so k_max -> inf is the physical limit;
+the grid-free simulations (k_max = 1e5) agree with it to <= 0.004 in K (manuscript_notes/gridfree_turbulence_test.md).
 
 None of these depend on lam, so they are tabulated once on (Delta, L_out, l) and K(l; Delta, lam, L_out)
-is then algebra. Lengths are in units of r_HII. The inner scale is fixed (L_IN): observed separations
-start at the 37" floor (>~ 0.01 r_HII) and s >= l, so it barely matters there.
+is then algebra. Lengths are in units of r_HII.
 
-Also tabulated: the realisation (field-seed) scatter of K and ln S2 from the 8-seed ensemble
-(kurtosis_vratio_seed_ensemble.py; generator field, L_out ~ 1.2), as a function of (Delta, lam, l).
+Also tabulated: the realisation (field-seed) scatter of K and ln S2 from the grid-free 8-seed ensemble
+(test_gridfree_kolmogorov_model.py pair caches; N = 30,000, k_min = 5.24 i.e. L_out = 1.2, k_max = 1e5;
+single realisations, odd terms included), as a function of (Delta, lam, l).
 The formula is an ensemble mean; this scatter enters the fit covariance.
 
 POINT SAMPLES ONLY: one LVM fibre is a line-of-sight emission-weighted centroid, not a point; the
@@ -25,7 +29,7 @@ pixelised version is still to do (note, section 10).
 
 Run from the repo root:
     python manuscript_pipeline/08_shell_inference/kurtosis_formula_tables.py build      # ~minutes
-    python manuscript_pipeline/08_shell_inference/kurtosis_formula_tables.py validate   # vs 8-seed runs
+    python manuscript_pipeline/08_shell_inference/kurtosis_formula_tables.py validate   # vs grid-free 8-seed runs
 """
 
 from __future__ import annotations
@@ -39,12 +43,14 @@ from scipy.interpolate import RegularGridInterpolator
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 SIM_DIR = HERE.parent / "04_flame_kurtosis_3d"
+sys.path.insert(0, str(SIM_DIR))
+from gridfree_kolmogorov import structure_function  # noqa: E402
 TABLE = REPO / "Figures/manuscript/08_shell_inference/data/kurtosis_formula_tables.npz"
 
 DELTA_GRID = np.geomspace(0.005, 1.0, 36)
 LOUT_GRID = np.geomspace(0.05, 40.0, 20)
 ELL_GRID = np.geomspace(0.001, 1.99, 70)
-L_IN = 0.005
+L_IN = 0.0  # no inner cutoff (k_max = inf); kept in the table file for provenance
 X_GRID = np.concatenate(([0.0], np.geomspace(1e-8, 2.0, 6000)))  # line-of-sight depth difference d_x
 MU0 = np.linspace(0.0, 1.0, 801)
 S_GRID = np.concatenate(([0.0], np.geomspace(1e-5, 2.9, 3000)))
@@ -68,17 +74,12 @@ def C_shell(s, delta):
     return lens(1, 1, s) - 2 * lens(1, a, s) + lens(a, a, s)
 
 
-def D_kolmogorov(s, l_out, l_in=L_IN, n_k=20000):
-    """Structure function of the unit-variance field with a k^-11/3 spectrum between 2pi/l_out and 2pi/l_in."""
+def D_kolmogorov(s, l_out, l_in=L_IN):
+    """Structure function of the unit-variance field with a k^-11/3 spectrum between 2pi/l_out and 2pi/l_in
+    (closed form; l_in = 0 means no inner cutoff, k_max = inf)."""
     s = np.atleast_1d(np.asarray(s, float))
-    k = np.geomspace(2 * np.pi / l_out, 2 * np.pi / l_in, n_k)
-    w = k ** (-5 / 3) * k  # k^-5/3 dk on a log grid
-    w /= np.trapezoid(w, np.log(k))
-    out = np.empty_like(s)
-    for i0 in range(0, len(s), 200):
-        ss = s[i0:i0 + 200]
-        out[i0:i0 + 200] = 2.0 * (1.0 - np.trapezoid(w * np.sinc(np.outer(ss, k) / np.pi), np.log(k), axis=1))
-    return out
+    kmax = np.inf if l_in <= 0 else 2 * np.pi / l_in
+    return structure_function(s, 2 * np.pi / l_out, kmax)
 
 
 def turb_averages(ell, delta, dfuns):
@@ -109,36 +110,33 @@ def assemble(D1, D2, Kb, J, lam):
 
 
 def _import_sim_modules():
-    argv = sys.argv
-    sys.argv = sys.argv[:1]  # kurtosis_shape_vs_vratio_fixed_width parses argv at import
-    sys.path[:0] = [str(SIM_DIR), str(HERE.parent / "00_core")]
-    try:
-        import kurtosis_shape_vs_vratio_fixed_width as kv
-        from derive_bulk_limit_kurtosis import k_theory
-    finally:
-        sys.argv = argv
-    return kv, k_theory
+    """(grid-free simulation module, exact bulk curve K_b(l))."""
+    sys.path[:0] = [str(HERE.parent / "00_core")]
+    import test_gridfree_kolmogorov_model as tg
+    from derive_bulk_limit_kurtosis import k_theory
+    return tg, k_theory
 
 
 # ------------------------------------------------------------------ build
 SEED_WIDTHS = (0.02, 0.09, 0.3, 1.0)
 SEED_LAMS = (0.25, 0.5, 1.0, 2.0, 4.0, 10.0)
+SEED_N_POINTS = 30000
 
 
-def realisation_scatter(kv):
-    """Field-seed std of K and ln S2 on the seed-ensemble l bins, smoothed over 3 bins in log l."""
-    ell = np.sqrt(kv.EDGES[:-1] * kv.EDGES[1:])
+def realisation_scatter(tg):
+    """Field-seed std of K and ln S2 on the grid-free seed-ensemble l bins (single realisations, odd terms
+    included), smoothed over 3 bins in log l."""
+    ell = np.sqrt(tg.EDGES[:-1] * tg.EDGES[1:])
     sK = np.full((len(SEED_WIDTHS), len(SEED_LAMS), len(ell)), np.nan)
     sS = np.full_like(sK, np.nan)
     for a, w in enumerate(SEED_WIDTHS):
-        tag = f"w{w:g}".replace(".", "p")
-        c = np.load(kv.BASE_DIR / f"_kurtosis_vratio_moments_{tag}_n{kv.N_POINTS}_seeds8.npz")
-        good = c["n"].sum(0) >= 200
+        c = tg.accumulate(w, SEED_N_POINTS)  # loads the cache
+        good = c["n"] >= 200
+        n_seeds = c["g2"].shape[0]
         for b, lam in enumerate(SEED_LAMS):
-            seeds = [{k: c[k][s] for k in kv.KEYS} for s in range(c["n"].shape[0])]
-            ks = np.array([kv.k_of_lambda(m, lam) for m in seeds])
-            s2 = np.array([(m["u2"] + 2 * lam * m["u1m1"] + lam ** 2 * m["m2"]) / m["n"] for m in seeds])
             with np.errstate(invalid="ignore", divide="ignore"):
+                ks = np.array([tg.K_sim(c, lam, seeds=slice(s, s + 1), odd=True) for s in range(n_seeds)])
+                s2 = (c["g2"] + 2 * lam * c["g1m1"] + lam ** 2 * c["m2"]) / c["n"]  # pair sums
                 sK[a, b, good] = np.nanstd(ks[:, good], axis=0, ddof=1)
                 sS[a, b, good] = np.nanstd(np.log(s2[:, good]), axis=0, ddof=1)
     # fill bins with too few pairs from the nearest good bin, then smooth in log l
@@ -153,7 +151,7 @@ def realisation_scatter(kv):
 
 
 def build():
-    kv, k_theory = _import_sim_modules()
+    tg, k_theory = _import_sim_modules()
     dfuns, Dtabs = [], []
     for L in LOUT_GRID:
         Dt = D_kolmogorov(S_GRID, L)
@@ -170,7 +168,7 @@ def build():
         print(f"Delta={delta:.4f}: K_b(l_min)={Kb[a, 0]:.2f}  K_t(l_min, L_out=1.2)="
               f"{3 * d2[9, 0] / d1[9, 0] ** 2:.2f}", flush=True)
     J = np.array([cross_J(ELL_GRID, f) for f in dfuns])
-    seed_ell, sK, sS = realisation_scatter(kv)
+    seed_ell, sK, sS = realisation_scatter(tg)
     TABLE.parent.mkdir(parents=True, exist_ok=True)
     np.savez(TABLE, delta=DELTA_GRID, l_out=LOUT_GRID, ell=ELL_GRID, l_in=L_IN, D1=D1, D2=D2, Kb=Kb, J=J,
              s_grid=S_GRID, D_of_s=np.array(Dtabs), seed_ell=seed_ell, seed_widths=np.array(SEED_WIDTHS),
@@ -222,26 +220,26 @@ class FormulaModel:
 
 # ------------------------------------------------------------------ validation
 def validate():
-    """(1) direct formula with the continuous D at generator scales vs the 8-seed runs;
-    (2) table interpolation vs direct evaluation at off-grid points (L_IN = table inner scale)."""
-    kv, k_theory = _import_sim_modules()
-    ell_all = np.sqrt(kv.EDGES[:-1] * kv.EDGES[1:])
-    Dgen = D_kolmogorov(S_GRID, 2 * np.pi / 5.24, l_in=2 * np.pi / 73.3)
+    """(1) direct formula (k_max = inf, L_out = 1.2) vs the grid-free 8-seed runs (odd terms removed);
+    (2) table interpolation vs direct evaluation at off-grid points."""
+    tg, k_theory = _import_sim_modules()
+    ell_all = np.sqrt(tg.EDGES[:-1] * tg.EDGES[1:])
+    Dgen = D_kolmogorov(S_GRID, 2 * np.pi / tg.KMIN)
     fgen = lambda s: np.interp(s, S_GRID, Dgen)  # noqa: E731
-    print("(1) continuous-D formula vs 8 seeds pooled: rms over l <= 0.6")
-    print(" Delta  " + "  ".join(f"lam={lam:<4g}" for lam in (0.5, 1, 2, 10)))
+    lams = (0.0, 0.5, 1, 2, 10)
+    print("(1) k_max = inf formula vs grid-free 8 seeds pooled: rms over l <= 0.6")
+    print(" Delta  " + "  ".join(f"lam={lam:<4g}" for lam in lams))
     for w in SEED_WIDTHS:
-        tag = f"w{w:g}".replace(".", "p")
-        c = np.load(kv.BASE_DIR / f"_kurtosis_vratio_moments_{tag}_n{kv.N_POINTS}_seeds8.npz")
-        pooled = {k: c[k].sum(0) for k in kv.KEYS}
-        good = (pooled["n"] >= 200) & (ell_all <= 0.6)
+        c = tg.accumulate(w, SEED_N_POINTS)
+        good = (c["n"] >= 200) & (ell_all <= 0.6)
         ell = ell_all[good]
+        a = {k: v[..., good] for k, v in c.items()}
         (d1,), (d2,) = turb_averages(ell, w, [fgen])
         kb, J = k_theory(ell, 1.0 - w), cross_J(ell, fgen)
         out = []
-        for lam in (0.5, 1, 2, 10):
+        for lam in lams:
             _, km = assemble(d1, d2, kb, J, lam)
-            out.append(np.sqrt(np.nanmean((kv.k_of_lambda(pooled, lam)[good] - km) ** 2)))
+            out.append(np.sqrt(np.nanmean((tg.K_sim(a, lam) - km) ** 2)))
         print(f" {w:<5g}  " + "  ".join(f"{r:8.3f}" for r in out))
 
     model = FormulaModel()
