@@ -1,6 +1,10 @@
-"""Two-step shell inference: lambda from the slope of K(l), then Delta from S2(l) at that lambda.
+"""Shell inference from the slope of ln K(l) plus S2(l), on a joint (Delta, lambda) grid (centroid model).
 
-Step 1 (lambda from the K slope). Statistic: the least-squares slope of ln K against log10 l over all usable bins,
+The slope of ln K mainly constrains lambda; S2(l) constrains a combination of Delta and lambda (its power-law index
+rises with both, study_s2_model.py). So lambda is NOT fixed before fitting S2: both chi2 terms are added on the
+(Delta, lambda) grid and each parameter is profiled over the other.
+
+Slope term. Statistic: the least-squares slope of ln K against log10 l over all usable bins,
     s = d ln K / d log10 l.
 ln K rather than K so that a constant mixing factor on S4 (S4 -> M S4, dispersion varying across the field)
 cancels. The same statistic is computed from the centroid model of fit_centroid_joint_grid.py (fibre = emission-
@@ -8,11 +12,14 @@ weighted line-of-sight centroid; back-side weight a = A_BACK) on the region's ow
 model as the joint fits (N2 = NOISE_C^2 x catalogue N2, K_obs = (K S2_sig^2 + 6 S2_sig N2 + 3 N2^2) / S2_obs^2) and
 v_turb set at each (Delta, lambda) so that the model's mean ln S2 equals the observed one. This gives the
 calibration s(lambda; Delta). chi2_s(Delta, lambda) = (s_obs - s_mod)^2 / sigma_s^2 with sigma_s from the shrunk
-jackknife covariance of K (+ model error), propagated to ln K. lambda: minimum and 1-sigma range of chi2_s profiled
-over Delta (Delta in D_GRID, i.e. not fixed), so the Delta dependence of the calibration widens the lambda range.
+jackknife covariance of K (+ model error), propagated to ln K. The slope-only lambda range (chi2_s profiled over
+Delta) is kept for the calibration figure (lambda_slope_only columns).
 
-Step 2 (Delta from S2). At the best lambda of step 1, fit ln S2(l) with the centroid model:
-S2_obs = v_turb^2 s2(l; Delta, lambda) + N2, chi2 from the S2 block of the covariance, v_turb profiled.
+S2 term. ln S2(l) with the centroid model, S2_obs = v_turb^2 s2(l; Delta, lambda) + N2, chi2 from the S2 block of
+the covariance, v_turb profiled at each (Delta, lambda).
+
+Result. chi2(Delta, lambda) = chi2_s + chi2_S2; lambda and Delta = minima and 1-sigma (dchi2 = 1) ranges of its
+profiles; v_bulk = lambda x v_turb at the minimum. K and S2 are treated as independent (cross-covariance ignored).
 
 Reference: the same slope for the analytic point-sample model (fit_analytic_point_K.py; thin shell, no sightline
 averaging), drawn as a grey line in the calibration panels.
@@ -20,11 +27,10 @@ averaging), drawn as a grey line in the calibration panels.
 Outputs (Figures/manuscript/08_shell_inference/slope_lambda/):
   slope_lambda_summary.csv
   slope_lambda_calibration.png  per region: s_mod(lambda) for each line (band = range over Delta), observed slope
-                                (horizontal band), inferred lambda (star)
-  slope_lambda_vs_joint.png     lambda and Delta from this method vs the joint centroid fit (--joint-run)
-  slope_lambda_probability.png  per region: P(lambda) from the slope (profiled over Delta) and P(Delta) from S2 at
-                                lambda_best, P = exp(-dchi2/2) normalised to peak 1; thin lines: the joint centroid
-                                fit's profiles of the same parameter (--joint-run)
+                                (horizontal band), slope-only lambda (star)
+  slope_lambda_vs_joint.png     lambda and Delta (slope + S2) vs the joint centroid fit (--joint-run)
+  slope_lambda_probability.png  per region: P(lambda) and P(Delta) profiled from chi2_s + chi2_S2,
+                                P = exp(-dchi2/2) normalised to peak 1; thin lines: the joint centroid fit (--joint-run)
   slope_lambda_maps_physical.png  (Delta r_shell [pc], v_bulk [km/s]) from chi2_slope + chi2_S2 on (Delta, lambda),
                                 v_bulk = lambda x v_turb with v_turb profiled from S2 at each point; grey: joint fit
   <region>_<LINE>_profiles.npz  dchi2(lambda), dchi2(Delta), dchi2(Delta, lambda), v_turb(Delta, lambda)
@@ -96,18 +102,16 @@ def fit_line(region, X, a):
     iL = int(prof.argmin())
     l_lo, l_hi, l_ok = prange(prof - prof.min(), LAM_GRID)
 
-    # step 2: Delta from S2 at lambda_best (v_turb profiled)
-    Linv = np.linalg.inv(np.linalg.cholesky(d["C0"][n:, n:]))
-    s2l = s2u[:, iL]  # (D, l)
-    chi_S = np.min([(((d["lnS2"] - np.log(np.exp(u) * s2l + d["N2"])) @ Linv.T) ** 2).sum(-1) for u in LNV2_GRID], 0)
-    iD = int(chi_S.argmin())
-    d_lo, d_hi, d_ok = prange(chi_S - chi_S.min(), D_GRID)
-
     # 2D map: slope chi2 + S2 chi2 on (Delta, lambda), v_turb profiled per point (for v_bulk = lambda v_turb)
+    Linv = np.linalg.inv(np.linalg.cholesky(d["C0"][n:, n:]))
     cS = np.stack([(((d["lnS2"] - np.log(np.exp(u) * s2u + d["N2"])) @ Linv.T) ** 2).sum(-1) for u in LNV2_GRID])
     v_map = np.exp(LNV2_GRID[cS.argmin(0)] / 2)  # (D, lam), km/s
     chi2d = chi_s + cS.min(0)
     jD, jL = np.unravel_index(chi2d.argmin(), chi2d.shape)
+    pL, pD = chi2d.min(0) - chi2d.min(), chi2d.min(1) - chi2d.min()
+    lam_lo, lam_hi, lam_ok = prange(pL, LAM_GRID)
+    d_lo, d_hi, d_ok = prange(pD, D_GRID)
+    chi_S2_best = cS.min(0)[jD, jL]
 
     # point-sample reference (analytic, noise as above), median over its Delta grid
     Kpt, s2pt = apk.model_grid(d["ell"], 2 * np.pi / d["L_out"])
@@ -115,20 +119,24 @@ def fit_line(region, X, a):
     s_pt = np.median(np.log(Kpo) @ w, 0)  # on apk.LAM_GRID
 
     flags = []
-    if not l_ok:
+    if not lam_ok:
         flags.append("lambda 1-sigma hits grid edge")
     if prof.min() > 1:
         flags.append("observed slope outside model range")
     if not d_ok:
         flags.append("Delta 1-sigma hits grid edge")
+    if chi_S2_best > n + 3 * np.sqrt(2 * n):
+        flags.append("poor S2 fit")
     band = (D_GRID >= BAND_DELTA[0]) & (D_GRID <= BAND_DELTA[1])
     row = {"region": region, "line": X, "n_bins": n, "a": a, "slope_obs": s_obs, "slope_err": sig_s,
-           "lambda_slope": LAM_GRID[iL], "lambda_lo": l_lo, "lambda_hi": l_hi, "chi2_slope_min": prof.min(),
-           "slope_model_min": s_mod.min(), "slope_model_max": s_mod.max(),
-           "delta_S2": D_GRID[iD], "delta_lo": d_lo, "delta_hi": d_hi, "chi2_S2": chi_S.min(), "n_S2": n,
+           "lambda": LAM_GRID[jL], "lambda_lo": lam_lo, "lambda_hi": lam_hi,
+           "delta": D_GRID[jD], "delta_lo": d_lo, "delta_hi": d_hi,
+           "v_turb": v_map[jD, jL], "v_bulk": LAM_GRID[jL] * v_map[jD, jL],
+           "chi2_slope": chi_s[jD, jL], "chi2_S2": chi_S2_best, "n_S2": n,
+           "lambda_slope_only": LAM_GRID[iL], "lambda_slope_only_lo": l_lo, "lambda_slope_only_hi": l_hi,
+           "chi2_slope_only_min": prof.min(), "slope_model_min": s_mod.min(), "slope_model_max": s_mod.max(),
            "flags": "; ".join(flags)}
-    plot = dict(s_band=(s_mod[band].min(0), s_mod[band].max(0)), s_pt=s_pt, prof_lam=prof - prof.min(),
-                prof_delta=chi_S - chi_S.min(), map2d=chi2d - chi2d.min(), v_map=v_map,
+    plot = dict(s_band=(s_mod[band].min(0), s_mod[band].max(0)), s_pt=s_pt, prof_lam=pL, prof_delta=pD, map2d=chi2d - chi2d.min(), v_map=v_map,
                 best2d=(D_GRID[jD], LAM_GRID[jL] * v_map[jD, jL]))
     return row, plot
 
@@ -145,10 +153,10 @@ def plot_calibration(rows, plots):
             ax.plot(LAM_GRID, 0.5 * (p["s_band"][0] + p["s_band"][1]), LINESTYLES[X], color=c, lw=1.4)
             ax.axhspan(r["slope_obs"] - r["slope_err"], r["slope_obs"] + r["slope_err"], color=c, alpha=0.12)
             ax.axhline(r["slope_obs"], color=c, ls=LINESTYLES[X], lw=0.9)
-            ax.errorbar(r["lambda_slope"], r["slope_obs"],
-                        xerr=[[r["lambda_slope"] - r["lambda_lo"]], [r["lambda_hi"] - r["lambda_slope"]]],
+            ls, lo, hi = r["lambda_slope_only"], r["lambda_slope_only_lo"], r["lambda_slope_only_hi"]
+            ax.errorbar(ls, r["slope_obs"], xerr=[[ls - lo], [hi - ls]],
                         fmt="*", ms=13, color=c, mec="white", mew=0.6, capsize=3,
-                        label=fr"{LINE_LABELS[X]}: $\lambda$={r['lambda_slope']:.2g} [{r['lambda_lo']:.2g}, {r['lambda_hi']:.2g}]")
+                        label=fr"{LINE_LABELS[X]}: $\lambda$={ls:.2g} [{lo:.2g}, {hi:.2g}]")
             ax.plot(apk.LAM_GRID, p["s_pt"], color="0.55", lw=0.9, ls="-." if X == "NII" else "none")
         ax.set(xscale="log", xlim=(LAM_GRID[0], LAM_GRID[-1]), title=region.replace("_", " "))
         ax.axhline(0, color="0.6", lw=0.6)
@@ -180,19 +188,19 @@ def plot_vs_joint(rows, joint_run):
             continue
         c = LINE_COLORS[r["line"]]
         kw = dict(fmt="o", ms=5, color=c, capsize=2, alpha=0.85)
-        a1.errorbar(float(j["best_lambda_eff"]), r["lambda_slope"],
+        a1.errorbar(float(j["best_lambda_eff"]), r["lambda"],
                     xerr=[[float(j["best_lambda_eff"]) - float(j["lambda_1sig_lo"])], [float(j["lambda_1sig_hi"]) - float(j["best_lambda_eff"])]],
-                    yerr=[[r["lambda_slope"] - r["lambda_lo"]], [r["lambda_hi"] - r["lambda_slope"]]], **kw)
-        a2.errorbar(float(j["best_delta"]), r["delta_S2"],
+                    yerr=[[r["lambda"] - r["lambda_lo"]], [r["lambda_hi"] - r["lambda"]]], **kw)
+        a2.errorbar(float(j["best_delta"]), r["delta"],
                     xerr=[[float(j["best_delta"]) - float(j["delta_1sig_lo"])], [float(j["delta_1sig_hi"]) - float(j["best_delta"])]],
-                    yerr=[[r["delta_S2"] - r["delta_lo"]], [r["delta_hi"] - r["delta_S2"]]], **kw)
-        a1.annotate(r["region"].replace("_nebula", "")[:6], (float(j["best_lambda_eff"]), r["lambda_slope"]), fontsize=6, color=c,
+                    yerr=[[r["delta"] - r["delta_lo"]], [r["delta_hi"] - r["delta"]]], **kw)
+        a1.annotate(r["region"].replace("_nebula", "")[:6], (float(j["best_lambda_eff"]), r["lambda"]), fontsize=6, color=c,
                     xytext=(3, 3), textcoords="offset points")
     for ax, lo, hi, lab in ((a1, 0.03, 30, r"\lambda"), (a2, 0.005, 1, r"\Delta")):
         ax.plot([lo, hi], [lo, hi], color="0.5", lw=0.8, ls="--")
         ax.set(xscale="log", yscale="log", xlim=(lo, hi), ylim=(lo, hi),
                xlabel=fr"${lab}$ joint centroid fit ({joint_run.removeprefix('centroid_joint_v_')})",
-               ylabel=fr"${lab}$ two-step (slope, then $S_2$)")
+               ylabel=fr"${lab}$ from $\ln K$ slope + $S_2$")
     for X in LINES:
         a1.plot([], [], "o", color=LINE_COLORS[X], label=LINE_LABELS[X])
     a1.legend(fontsize=9)
@@ -283,17 +291,17 @@ def plot_probability(rows, plots, joint_run):
         aL.set(xlim=(LAM_GRID[0], LAM_GRID[-1]), title=region.replace("_", " "), xlabel=r"$\lambda_{\rm eff}$")
         aD.set(xlim=(D_GRID[0], D_GRID[-1]), xlabel=r"$\Delta r_{\rm shell}/r_{\rm HII}$")
         if i % nc == 0:
-            aL.set_ylabel(r"$P(\lambda)$ from slope")
-            aD.set_ylabel(r"$P(\Delta)$ from $S_2$")
+            aL.set_ylabel(r"$P(\lambda)$")
+            aD.set_ylabel(r"$P(\Delta)$")
         if i == 0:
-            aL.plot([], [], color="0.4", lw=2, label="two-step")
+            aL.plot([], [], color="0.4", lw=2, label=r"slope + $S_2$")
             aL.plot([], [], color="0.4", lw=0.9, label="joint fit")
             aL.legend(fontsize=7.5, loc="upper left")
     for j in range(len(regions), nr * nc):
         axes[2 * (j // nc), j % nc].axis("off")
         axes[2 * (j // nc) + 1, j % nc].axis("off")
-    fig.suptitle(r"Profile probabilities $P=e^{-\Delta\chi^2/2}$ (peak 1; dotted: $1\sigma$ level). Thick: two-step "
-                 r"($\lambda$ from the $\ln K$ slope, $\Delta$ from $S_2$ at $\lambda_{\rm best}$); thin: joint centroid fit "
+    fig.suptitle(r"Profile probabilities $P=e^{-\Delta\chi^2/2}$ (peak 1; dotted: $1\sigma$ level). Thick: $\ln K$ slope + $S_2$ "
+                 r"on the joint ($\Delta$, $\lambda$) grid, each profiled over the other; thin: joint centroid fit "
                  fr"({joint_run.removeprefix('centroid_joint_v_')}, profiled)", fontsize=11)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "slope_lambda_probability.png", dpi=150)
@@ -324,13 +332,14 @@ def main():
             rows.append(row)
             plots[(region, X)] = p
             np.savez(OUT_DIR / f"{region}_{X}_profiles.npz", lambda_grid=LAM_GRID, dchi2_lambda=p["prof_lam"],
-                     delta_grid=D_GRID, dchi2_delta=p["prof_delta"], lambda_best=row["lambda_slope"],
+                     delta_grid=D_GRID, dchi2_delta=p["prof_delta"], lambda_best=row["lambda"],
                      dchi2_2d=p["map2d"], v_turb_2d=p["v_map"])
             print(f"{region:15s} {X:4s} slope={row['slope_obs']:+.2f}±{row['slope_err']:.2f} "
                   f"(model {row['slope_model_min']:+.2f}..{row['slope_model_max']:+.2f})  "
-                  f"lam={row['lambda_slope']:.2f} [{row['lambda_lo']:.2f},{row['lambda_hi']:.2f}]  "
-                  f"Delta(S2)={row['delta_S2']:.3f} [{row['delta_lo']:.3f},{row['delta_hi']:.3f}] "
-                  f"chi2_S2={row['chi2_S2']:.1f}/{row['n_S2']}  {row['flags']}", flush=True)
+                  f"lam={row['lambda']:.2f} [{row['lambda_lo']:.2f},{row['lambda_hi']:.2f}] "
+                  f"(slope only {row['lambda_slope_only']:.2f})  "
+                  f"Delta={row['delta']:.3f} [{row['delta_lo']:.3f},{row['delta_hi']:.3f}]  "
+                  f"v_bulk={row['v_bulk']:.1f}  chi2_S2={row['chi2_S2']:.1f}/{row['n_S2']}  {row['flags']}", flush=True)
     suffix = "" if args.a == 0 else f"_a{args.a:g}"
     with open(OUT_DIR / f"slope_lambda_summary{suffix}.csv", "w", newline="", encoding="utf-8") as fh:
         wr = csv.writer(fh)
