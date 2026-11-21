@@ -25,7 +25,9 @@ Outputs (Figures/manuscript/08_shell_inference/slope_lambda/):
   slope_lambda_probability.png  per region: P(lambda) from the slope (profiled over Delta) and P(Delta) from S2 at
                                 lambda_best, P = exp(-dchi2/2) normalised to peak 1; thin lines: the joint centroid
                                 fit's profiles of the same parameter (--joint-run)
-  <region>_<LINE>_profiles.npz  dchi2(lambda), dchi2(Delta)
+  slope_lambda_maps_physical.png  (Delta r_shell [pc], v_bulk [km/s]) from chi2_slope + chi2_S2 on (Delta, lambda),
+                                v_bulk = lambda x v_turb with v_turb profiled from S2 at each point; grey: joint fit
+  <region>_<LINE>_profiles.npz  dchi2(lambda), dchi2(Delta), dchi2(Delta, lambda), v_turb(Delta, lambda)
 
 Run from the repo root:
     python manuscript_pipeline/08_shell_inference/fit_slope_lambda.py [--a 0] [--joint-run centroid_joint_v_a0_lammin1]
@@ -101,6 +103,12 @@ def fit_line(region, X, a):
     iD = int(chi_S.argmin())
     d_lo, d_hi, d_ok = prange(chi_S - chi_S.min(), D_GRID)
 
+    # 2D map: slope chi2 + S2 chi2 on (Delta, lambda), v_turb profiled per point (for v_bulk = lambda v_turb)
+    cS = np.stack([(((d["lnS2"] - np.log(np.exp(u) * s2u + d["N2"])) @ Linv.T) ** 2).sum(-1) for u in LNV2_GRID])
+    v_map = np.exp(LNV2_GRID[cS.argmin(0)] / 2)  # (D, lam), km/s
+    chi2d = chi_s + cS.min(0)
+    jD, jL = np.unravel_index(chi2d.argmin(), chi2d.shape)
+
     # point-sample reference (analytic, noise as above), median over its Delta grid
     Kpt, s2pt = apk.model_grid(d["ell"], 2 * np.pi / d["L_out"])
     Kpo, _ = observed_K(Kpt, s2pt, d["N2"], d["lnS2"])
@@ -120,7 +128,8 @@ def fit_line(region, X, a):
            "delta_S2": D_GRID[iD], "delta_lo": d_lo, "delta_hi": d_hi, "chi2_S2": chi_S.min(), "n_S2": n,
            "flags": "; ".join(flags)}
     plot = dict(s_band=(s_mod[band].min(0), s_mod[band].max(0)), s_pt=s_pt, prof_lam=prof - prof.min(),
-                prof_delta=chi_S - chi_S.min())
+                prof_delta=chi_S - chi_S.min(), map2d=chi2d - chi2d.min(), v_map=v_map,
+                best2d=(D_GRID[jD], LAM_GRID[jL] * v_map[jD, jL]))
     return row, plot
 
 
@@ -192,6 +201,65 @@ def plot_vs_joint(rows, joint_run):
     plt.close(fig)
 
 
+def plot_physical(rows, plots, joint_run):
+    """(Delta r_shell [pc], v_bulk [km/s]) maps from slope + S2 for every region; v_bulk = lambda x v_turb(Delta, lambda).
+    Thin grey contours (1 sigma): the joint centroid fit, converted with its shared v_turb."""
+    from plot_centroid_joint_selected_physical import load_adopted_radii
+    from matplotlib.ticker import FixedLocator, NullFormatter, ScalarFormatter
+
+    adopted = load_adopted_radii()
+    run = OUT_BASE / joint_run
+    with open(run / "joint_summary.csv", encoding="utf-8") as f:
+        J = {(r["region"], r["line"]): r for r in csv.DictReader(f)}
+    regions = list(dict.fromkeys(r["region"] for r in rows))
+    nc = 4
+    nr = int(np.ceil(len(regions) / nc))
+    fig, axes = plt.subplots(nr, nc, figsize=(4.7 * nc, 4.1 * nr), squeeze=False)
+    for ax, region in zip(axes.flat, regions):
+        lines = [r["line"] for r in rows if r["region"] == region]
+        r_hii = adopted.get(region) or float(np.load(DATA_DIR / f"{region}_{lines[0]}_formula_data.npz")["r_hii_pc"])
+        xs, ys = [r_hii], []
+        for X in lines:
+            p, c = plots[(region, X)], LINE_COLORS[X]
+            xx = (D_GRID * r_hii)[:, None] * np.ones(len(LAM_GRID))[None]
+            yy = LAM_GRID[None, :] * p["v_map"]
+            m = p["map2d"]
+            inside = m <= 6.18
+            xs += [xx[inside].min(), xx[inside].max()]
+            ys += [yy[inside].min(), yy[inside].max()]
+            ax.contourf(xx, yy, m, levels=[0, 2.30], colors=[c], alpha=0.25)
+            ax.contour(xx, yy, m, levels=[2.30, 6.18], colors=[c], linestyles=[LINESTYLES[X]], linewidths=[1.8, 0.9])
+            ax.plot(p["best2d"][0] * r_hii, p["best2d"][1], "*", ms=13, color=c, mec="white", mew=0.7)
+            ax.plot([], [], color=c, ls=LINESTYLES[X], lw=1.8, label=LINE_LABELS[X])
+            jm = run / f"{region}_{X}_map.npz"
+            if jm.exists() and (region, X) in J:
+                jj = np.load(jm)
+                v = float(J[(region, X)]["v_turb"])
+                gx, gy = np.meshgrid(jj["delta_grid"] * r_hii, jj["lambda_grid"] * v, indexing="ij")
+                ax.contour(gx, gy, jj["dm2lnL"], levels=[2.30], colors=["0.35"], linestyles=[LINESTYLES[X]], linewidths=0.8)
+        ax.axvline(r_hii, color="0.3", ls="--", lw=1.0)
+        ax.set(xscale="log", yscale="log", title=region.replace("_", " "))
+        ax.set_xlim(min(xs) / 1.3, max(xs) * 1.3)
+        ylo, yhi = min(ys) / 1.2, max(ys) * 1.2
+        ax.set_ylim(ylo, yhi)
+        ax.yaxis.set_major_locator(FixedLocator([t for t in (0.1, 0.3, 1, 3, 10, 30, 100, 300) if ylo <= t <= yhi]))
+        ax.yaxis.set_major_formatter(ScalarFormatter())
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        ax.legend(fontsize=8, loc="lower left")
+    for ax in axes.flat[len(regions):]:
+        ax.axis("off")
+    for ax in axes[:, 0]:
+        ax.set_ylabel(r"$v_{\rm bulk}$ (km/s)")
+    for ax in axes[-1, :]:
+        ax.set_xlabel(r"$\Delta r_{\rm shell}$ [pc]")
+    fig.suptitle(r"Slope of $\ln K$ + $S_2(\ell)$, centroid model: filled 1$\sigma$, thin 2$\sigma$, star = best; "
+                 r"grey: joint centroid fit 1$\sigma$ (" + joint_run.removeprefix("centroid_joint_v_") + r"); dashed: $r_{\rm HII}$",
+                 fontsize=11)
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "slope_lambda_maps_physical.png", dpi=160)
+    plt.close(fig)
+
+
 def plot_probability(rows, plots, joint_run):
     run = OUT_BASE / joint_run
     regions = list(dict.fromkeys(r["region"] for r in rows))
@@ -256,7 +324,8 @@ def main():
             rows.append(row)
             plots[(region, X)] = p
             np.savez(OUT_DIR / f"{region}_{X}_profiles.npz", lambda_grid=LAM_GRID, dchi2_lambda=p["prof_lam"],
-                     delta_grid=D_GRID, dchi2_delta=p["prof_delta"], lambda_best=row["lambda_slope"])
+                     delta_grid=D_GRID, dchi2_delta=p["prof_delta"], lambda_best=row["lambda_slope"],
+                     dchi2_2d=p["map2d"], v_turb_2d=p["v_map"])
             print(f"{region:15s} {X:4s} slope={row['slope_obs']:+.2f}±{row['slope_err']:.2f} "
                   f"(model {row['slope_model_min']:+.2f}..{row['slope_model_max']:+.2f})  "
                   f"lam={row['lambda_slope']:.2f} [{row['lambda_lo']:.2f},{row['lambda_hi']:.2f}]  "
@@ -272,6 +341,7 @@ def main():
         plot_calibration(rows, plots)
         plot_vs_joint(rows, args.joint_run)
         plot_probability(rows, plots, args.joint_run)
+        plot_physical(rows, plots, args.joint_run)
     print(f"wrote {OUT_DIR}")
 
 
