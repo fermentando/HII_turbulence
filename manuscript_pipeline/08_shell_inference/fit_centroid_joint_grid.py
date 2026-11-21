@@ -36,7 +36,7 @@ width-mixing factor per line (compute_multifloor_slopes, in the formula data; su
 --mixing: S4 -> M S4, M free per line (excess K at all l from dispersion varying across the field).
 --lam-min L: prior lambda_eff >= L (output suffix _lammin<L>); below ~1 the bulk term is not separable from
 turbulence.
---fix-a A: fix the back-side weight a (one of A_GRID) instead of profiling it; with no --mixing/--fit-noise
+--fix-a A: fix the back-side weight a (one of A_MOM; a = 1 = symmetric shell, no bulk signal in the centroids) instead of profiling it; with no --mixing/--fit-noise
 the only free parameters are Delta and lam_eff per line plus the shared v_turb (S2 normalisation).
 
 Fit: as fit_kurtosis_s2_joint_grid.py: y = [K, ln S2] per line, shrunk jackknife covariance + model error,
@@ -79,7 +79,8 @@ LINESTYLES = {"NII": "-", "SII": "--", "SIII": ":"}
 NZ = 240
 N_PAIRS = 1500
 D_GRID = np.geomspace(0.005, 1.0, 28)
-A_GRID = np.array([0.0, 0.4, 0.7])
+A_GRID = np.array([0.0, 0.4, 0.7])  # back-side weights profiled over by default
+A_MOM = np.array([0.0, 0.4, 0.7, 1.0])  # weights with cached moments; a = 1 only via --fix-a 1
 LAM_GRID = np.geomspace(0.01, 30.0, 90)
 LNV2_GRID = np.log(np.geomspace(0.2, 40.0, 140) ** 2)
 M_GRID = np.geomspace(1.0, 5.0, 10)  # --mixing: S4 -> M S4 (dispersion varying across the field), free per line
@@ -116,7 +117,8 @@ def weights(rho, delta, a):
     w = front + a * back
     w /= w.sum(1, keepdims=True)
     mu = ZC[None, :] / np.sqrt(rho[:, None] ** 2 + ZC[None, :] ** 2)
-    G = (w * mu).sum(1) / ((1 - a) / (1 + a))
+    # a = 1: symmetric shell, the walls cancel and G ~ 0 (no bulk signal; lam_eff is then unconstrained)
+    G = (w * mu).sum(1) / ((1 - a) / (1 + a) if a < 1 else 1.0)
     return w, G
 
 
@@ -149,7 +151,7 @@ def beam_offsets(beam, seed=7):
 
 
 def centroid_moments(ell, l_out, beam=0.0, seed=1):
-    """Pair moments <T>, <T^2>, <m2>, <T m2>, <m4> (m2 = (G1-G2)^2) on (ell, D_GRID, A_GRID).
+    """Pair moments <T>, <T^2>, <m2>, <T m2>, <m4> (m2 = (G1-G2)^2) on (ell, D_GRID, A_MOM).
     Fibre footprint: the turbulent correlation between two fibres is averaged over points uniform in each
     fibre (top hat of diameter `beam`); emission weights w(z) and the bulk centroid are taken at the
     fibre centre (they vary on scales >> beam except at the limb)."""
@@ -160,12 +162,12 @@ def centroid_moments(ell, l_out, beam=0.0, seed=1):
     xib = lambda l: np.mean([xi(np.sqrt((l + o[0]) ** 2 + o[1] ** 2 + dz2)) for o in off], axis=0)  # noqa: E731
     X0 = xib(0.0)
     rng = np.random.default_rng(seed)
-    mom = np.zeros((5, len(ell), len(D_GRID), len(A_GRID)))
+    mom = np.zeros((5, len(ell), len(D_GRID), len(A_MOM)))
     for i, l in enumerate(ell):
         r1, r2 = sample_pairs(l, rng)
         Xl = xib(l)
         for j, d in enumerate(D_GRID):
-            for k, a in enumerate(A_GRID):
+            for k, a in enumerate(A_MOM):
                 w1, G1 = weights(r1, d, a)
                 w2, G2 = weights(r2, d, a)
                 T = (np.einsum("pi,ij,pj->p", w1, X0, w1, optimize=True)
@@ -221,13 +223,13 @@ def get_moments(region, line, data, cache_dir, beam):
     if p.exists():
         c = np.load(p)
         if (np.allclose(c["ell"], data["ell"]) and np.isclose(float(c["l_out"]), data["L_out"])
-                and np.allclose(c["delta"], D_GRID) and np.allclose(c["a"], A_GRID)
+                and np.allclose(c["delta"], D_GRID) and np.array_equal(c["a"], A_MOM)
                 and np.isclose(float(c["beam"]) if "beam" in c else 0.0, beam)
                 and np.isclose(float(c["l_in"]) if "l_in" in c else 0.005, L_IN)):  # old caches: l_in = 0.005
             return c["mom"]
     t0 = time.time()
     mom = centroid_moments(data["ell"], data["L_out"], beam)
-    np.savez(p, mom=mom, ell=data["ell"], l_out=data["L_out"], delta=D_GRID, a=A_GRID, nz=NZ, n_pairs=N_PAIRS,
+    np.savez(p, mom=mom, ell=data["ell"], l_out=data["L_out"], delta=D_GRID, a=A_MOM, nz=NZ, n_pairs=N_PAIRS,
              beam=beam, l_in=L_IN)
     print(f"  moments {region} {line}: {time.time() - t0:.0f} s", flush=True)
     return mom
@@ -241,8 +243,8 @@ def main():
     ap.add_argument("--beam", action="store_true", help="average over the 35.3\" fibre footprint")
     ap.add_argument("--fit-noise", action="store_true",
                     help="noise factor c free per line with a log-normal prior around the overlap calibration")
-    ap.add_argument("--fix-a", type=float, default=None, choices=[float(x) for x in A_GRID],
-                    help="fix the back-side weight a (default: profiled over A_GRID)")
+    ap.add_argument("--fix-a", type=float, default=None, choices=[float(x) for x in A_MOM],
+                    help="fix the back-side weight a (default: profiled over A_GRID; a = 1: no bulk signal)")
     ap.add_argument("--noise-kurt", action="store_true",
                     help="noise 4th moment K_N N2^2 with K_N from tile-overlap duplicates (measure_overlap_noise.py)")
     ap.add_argument("--mixing-meas", action="store_true",
@@ -254,8 +256,9 @@ def main():
     global LAM_GRID
     if args.lam_min is not None:
         LAM_GRID = LAM_GRID[LAM_GRID >= args.lam_min]
-    a_idx = np.arange(len(A_GRID)) if args.fix_a is None else np.flatnonzero(np.isclose(A_GRID, args.fix_a))
-    a_grid = A_GRID[a_idx]
+    a_idx = (np.flatnonzero(np.isin(A_MOM, A_GRID)) if args.fix_a is None
+             else np.flatnonzero(np.isclose(A_MOM, args.fix_a)))
+    a_grid = A_MOM[a_idx]
     m_grid = M_GRID if args.mixing else np.array([1.0])
     m_grids = {}
     out_dir = OUT_BASE / (f"centroid_joint_{args.share}" + ("_mixing" if args.mixing else "")
