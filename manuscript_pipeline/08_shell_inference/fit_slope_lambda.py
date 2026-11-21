@@ -228,9 +228,12 @@ def plot_vs_joint(rows, joint_run):
     plt.close(fig)
 
 
+SHOW_JOINT = False  # overlay the joint centroid fit's 1-sigma contours (--show-joint)
+
+
 def plot_physical(rows, plots, joint_run):
     """(Delta r_shell [pc], v_bulk [km/s]) maps from slope + S2 for every region; v_bulk = lambda x v_turb(Delta, lambda).
-    Thin grey contours (1 sigma): the joint centroid fit, converted with its shared v_turb."""
+    1-sigma regions only. With --show-joint: thin grey 1-sigma contours of the joint centroid fit (its shared v_turb)."""
     from plot_centroid_joint_selected_physical import load_adopted_radii
     from matplotlib.ticker import FixedLocator, NullFormatter, ScalarFormatter
 
@@ -252,15 +255,15 @@ def plot_physical(rows, plots, joint_run):
             yy = LAM_GRID[None, :] * p["v_map"]
             m = p["map2d"]
             ax.plot(D_GRID * r_hii, p["floor_v"], color=c, lw=0.7, ls=(0, (1, 2)), alpha=0.8)
-            inside = m <= 6.18
+            inside = m <= 2.30
             xs += [xx[inside].min(), xx[inside].max()]
             ys += [yy[inside].min(), yy[inside].max()]
             ax.contourf(xx, yy, m, levels=[0, 2.30], colors=[c], alpha=0.25)
-            ax.contour(xx, yy, m, levels=[2.30, 6.18], colors=[c], linestyles=[LINESTYLES[X]], linewidths=[1.8, 0.9])
+            ax.contour(xx, yy, m, levels=[2.30], colors=[c], linestyles=[LINESTYLES[X]], linewidths=[1.8])
             ax.plot(p["best2d"][0] * r_hii, p["best2d"][1], "*", ms=13, color=c, mec="white", mew=0.7)
             ax.plot([], [], color=c, ls=LINESTYLES[X], lw=1.8, label=LINE_LABELS[X])
             jm = run / f"{region}_{X}_map.npz"
-            if jm.exists() and (region, X) in J:
+            if SHOW_JOINT and jm.exists() and (region, X) in J:
                 jj = np.load(jm)
                 v = float(J[(region, X)]["v_turb"])
                 gx, gy = np.meshgrid(jj["delta_grid"] * r_hii, jj["lambda_grid"] * v, indexing="ij")
@@ -280,9 +283,9 @@ def plot_physical(rows, plots, joint_run):
         ax.set_ylabel(r"$v_{\rm bulk}$ (km/s)")
     for ax in axes[-1, :]:
         ax.set_xlabel(r"$\Delta r_{\rm shell}$ [pc]")
-    fig.suptitle(r"Slope of $\ln K$ + $S_2(\ell)$, centroid model: filled 1$\sigma$, thin 2$\sigma$, star = best; "
-                 r"dotted: $v_{\rm bulk}=v_{\rm turb}$ (soft prior below); grey: joint centroid fit 1$\sigma$ (" + joint_run.removeprefix("centroid_joint_v_") + r"); dashed: $r_{\rm HII}$",
-                 fontsize=11)
+    fig.suptitle(r"Slope of $\ln K$ + $S_2(\ell)$, centroid model: 1$\sigma$ regions, star = best; "
+                 r"dotted: $v_{\rm bulk}=v_{\rm turb}$ (soft prior below); dashed: $r_{\rm HII}$"
+                 + (r"; grey: joint centroid fit 1$\sigma$" if SHOW_JOINT else ""), fontsize=11)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "slope_lambda_maps_physical.png", dpi=160)
     plt.close(fig)
@@ -331,15 +334,17 @@ def plot_probability(rows, plots, joint_run):
 
 
 def main():
-    global LAM_MIN, LAM_SOFT
+    global LAM_MIN, LAM_SOFT, SHOW_JOINT
     ap = argparse.ArgumentParser()
     ap.add_argument("--a", type=float, default=0.0, choices=[float(x) for x in A_MOM])
     ap.add_argument("--joint-run", default="centroid_joint_v_a0_lammin1")
     ap.add_argument("--region", default=None)
+    ap.add_argument("--show-joint", action="store_true", help="overlay the joint centroid fit on the physical maps")
     ap.add_argument("--lam-min", type=float, default=LAM_MIN, help="soft prior below LAM_MIN (v_bulk < v_turb at 1)")
     ap.add_argument("--lam-soft", type=float, default=LAM_SOFT, help="prior width in ln lambda below LAM_MIN (0: hard cut)")
     args = ap.parse_args()
     LAM_MIN, LAM_SOFT = args.lam_min, args.lam_soft
+    SHOW_JOINT = args.show_joint
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     try:
         plt.style.use("./custom_plot.mplstyle")
