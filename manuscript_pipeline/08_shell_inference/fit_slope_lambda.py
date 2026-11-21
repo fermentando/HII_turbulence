@@ -18,8 +18,10 @@ Delta) is kept for the calibration figure (lambda_slope_only columns).
 S2 term. ln S2(l) with the centroid model, S2_obs = v_turb^2 s2(l; Delta, lambda) + N2, chi2 from the S2 block of
 the covariance, v_turb profiled at each (Delta, lambda).
 
-Result. chi2(Delta, lambda) = chi2_s + chi2_S2; lambda and Delta = minima and 1-sigma (dchi2 = 1) ranges of its
-profiles; v_bulk = lambda x v_turb at the minimum. K and S2 are treated as independent (cross-covariance ignored).
+Result. chi2(Delta, lambda) = chi2_s + chi2_S2 with the prior lambda >= LAM_MIN (default 1: v_bulk >= v_turb; below
+it the bulk term is not separable from turbulence, as the joint fits' --lam-min 1); lambda and Delta = minima and
+1-sigma (dchi2 = 1) ranges of its profiles; v_bulk = lambda x v_turb at the minimum. A line whose lambda range reaches
+the floor is flagged: its v_bulk is only an upper limit (v_bulk_hi), and v_bulk <~ v_turb. K and S2 are treated as independent (cross-covariance ignored).
 
 Reference: the same slope for the analytic point-sample model (fit_analytic_point_K.py; thin shell, no sightline
 averaging), drawn as a grey line in the calibration panels.
@@ -61,6 +63,7 @@ from fit_kurtosis_s2_joint_grid import load, prange  # noqa: E402
 from vsf_module import LINE_COLORS, LINE_LABELS  # noqa: E402
 
 LAM_GRID = np.geomspace(0.03, 30.0, 70)
+LAM_MIN = 1.0  # prior lambda >= LAM_MIN (v_bulk >= v_turb): below it bulk is not separable from turbulence (--lam-min)
 OUT_DIR = OUT_BASE / "slope_lambda"
 CACHE = OUT_BASE / "centroid_moments"
 BAND_DELTA = (0.01, 0.3)  # Delta range drawn as the calibration band
@@ -107,9 +110,12 @@ def fit_line(region, X, a):
     cS = np.stack([(((d["lnS2"] - np.log(np.exp(u) * s2u + d["N2"])) @ Linv.T) ** 2).sum(-1) for u in LNV2_GRID])
     v_map = np.exp(LNV2_GRID[cS.argmin(0)] / 2)  # (D, lam), km/s
     chi2d = chi_s + cS.min(0)
+    chi2d[:, LAM_GRID < LAM_MIN] = 1e6  # prior: v_bulk >= LAM_MIN x v_turb
     jD, jL = np.unravel_index(chi2d.argmin(), chi2d.shape)
     pL, pD = chi2d.min(0) - chi2d.min(), chi2d.min(1) - chi2d.min()
     lam_lo, lam_hi, lam_ok = prange(pL, LAM_GRID)
+    lam_floor = LAM_GRID[LAM_GRID >= LAM_MIN][0]
+    at_floor = lam_lo <= lam_floor  # 1-sigma range reaches the floor: v_bulk is an upper limit (<= v_bulk_hi)
     d_lo, d_hi, d_ok = prange(pD, D_GRID)
     chi_S2_best = cS.min(0)[jD, jL]
 
@@ -119,8 +125,10 @@ def fit_line(region, X, a):
     s_pt = np.median(np.log(Kpo) @ w, 0)  # on apk.LAM_GRID
 
     flags = []
-    if not lam_ok:
-        flags.append("lambda 1-sigma hits grid edge")
+    if at_floor:
+        flags.append("v_bulk 1-sigma reaches the v_turb floor (upper limit only)")
+    if lam_hi >= LAM_GRID[-1]:
+        flags.append("lambda 1-sigma hits upper grid edge")
     if prof.min() > 1:
         flags.append("observed slope outside model range")
     if not d_ok:
@@ -132,12 +140,13 @@ def fit_line(region, X, a):
            "lambda": LAM_GRID[jL], "lambda_lo": lam_lo, "lambda_hi": lam_hi,
            "delta": D_GRID[jD], "delta_lo": d_lo, "delta_hi": d_hi,
            "v_turb": v_map[jD, jL], "v_bulk": LAM_GRID[jL] * v_map[jD, jL],
+           "v_bulk_lo": lam_lo * v_map[jD, jL], "v_bulk_hi": lam_hi * v_map[jD, jL], "lambda_min_prior": LAM_MIN,
            "chi2_slope": chi_s[jD, jL], "chi2_S2": chi_S2_best, "n_S2": n,
            "lambda_slope_only": LAM_GRID[iL], "lambda_slope_only_lo": l_lo, "lambda_slope_only_hi": l_hi,
            "chi2_slope_only_min": prof.min(), "slope_model_min": s_mod.min(), "slope_model_max": s_mod.max(),
            "flags": "; ".join(flags)}
     plot = dict(s_band=(s_mod[band].min(0), s_mod[band].max(0)), s_pt=s_pt, prof_lam=pL, prof_delta=pD, map2d=chi2d - chi2d.min(), v_map=v_map,
-                best2d=(D_GRID[jD], LAM_GRID[jL] * v_map[jD, jL]))
+                best2d=(D_GRID[jD], LAM_GRID[jL] * v_map[jD, jL]), floor_v=lam_floor * v_map[:, LAM_GRID >= LAM_MIN][:, 0])
     return row, plot
 
 
@@ -231,7 +240,8 @@ def plot_physical(rows, plots, joint_run):
             p, c = plots[(region, X)], LINE_COLORS[X]
             xx = (D_GRID * r_hii)[:, None] * np.ones(len(LAM_GRID))[None]
             yy = LAM_GRID[None, :] * p["v_map"]
-            m = p["map2d"]
+            m = np.where(LAM_GRID[None, :] >= LAM_MIN, p["map2d"], np.nan)
+            ax.plot(D_GRID * r_hii, p["floor_v"], color=c, lw=0.7, ls=(0, (1, 2)), alpha=0.8)
             inside = m <= 6.18
             xs += [xx[inside].min(), xx[inside].max()]
             ys += [yy[inside].min(), yy[inside].max()]
@@ -261,7 +271,7 @@ def plot_physical(rows, plots, joint_run):
     for ax in axes[-1, :]:
         ax.set_xlabel(r"$\Delta r_{\rm shell}$ [pc]")
     fig.suptitle(r"Slope of $\ln K$ + $S_2(\ell)$, centroid model: filled 1$\sigma$, thin 2$\sigma$, star = best; "
-                 r"grey: joint centroid fit 1$\sigma$ (" + joint_run.removeprefix("centroid_joint_v_") + r"); dashed: $r_{\rm HII}$",
+                 r"dotted: $v_{\rm bulk}=v_{\rm turb}$ floor; grey: joint centroid fit 1$\sigma$ (" + joint_run.removeprefix("centroid_joint_v_") + r"); dashed: $r_{\rm HII}$",
                  fontsize=11)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "slope_lambda_maps_physical.png", dpi=160)
@@ -288,6 +298,7 @@ def plot_probability(rows, plots, joint_run):
         for ax in (aL, aD):
             ax.set(xscale="log", ylim=(0, 1.08))
             ax.axhline(np.exp(-0.5), color="0.6", lw=0.6, ls=":")
+        aL.axvspan(LAM_GRID[0], LAM_MIN, color="0.92", zorder=0)
         aL.set(xlim=(LAM_GRID[0], LAM_GRID[-1]), title=region.replace("_", " "), xlabel=r"$\lambda_{\rm eff}$")
         aD.set(xlim=(D_GRID[0], D_GRID[-1]), xlabel=r"$\Delta r_{\rm shell}/r_{\rm HII}$")
         if i % nc == 0:
@@ -309,11 +320,14 @@ def plot_probability(rows, plots, joint_run):
 
 
 def main():
+    global LAM_MIN
     ap = argparse.ArgumentParser()
     ap.add_argument("--a", type=float, default=0.0, choices=[float(x) for x in A_MOM])
     ap.add_argument("--joint-run", default="centroid_joint_v_a0_lammin1")
     ap.add_argument("--region", default=None)
+    ap.add_argument("--lam-min", type=float, default=LAM_MIN, help="prior lambda >= LAM_MIN (v_bulk >= v_turb at 1)")
     args = ap.parse_args()
+    LAM_MIN = args.lam_min
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     try:
         plt.style.use("./custom_plot.mplstyle")
@@ -340,7 +354,7 @@ def main():
                   f"(slope only {row['lambda_slope_only']:.2f})  "
                   f"Delta={row['delta']:.3f} [{row['delta_lo']:.3f},{row['delta_hi']:.3f}]  "
                   f"v_bulk={row['v_bulk']:.1f}  chi2_S2={row['chi2_S2']:.1f}/{row['n_S2']}  {row['flags']}", flush=True)
-    suffix = "" if args.a == 0 else f"_a{args.a:g}"
+    suffix = ("" if args.a == 0 else f"_a{args.a:g}") + ("" if LAM_MIN == 1 else f"_lammin{LAM_MIN:g}")
     with open(OUT_DIR / f"slope_lambda_summary{suffix}.csv", "w", newline="", encoding="utf-8") as fh:
         wr = csv.writer(fh)
         wr.writerow(list(rows[0]))
