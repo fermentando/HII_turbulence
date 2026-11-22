@@ -4,7 +4,7 @@ Reads the saved (Delta, lambda) maps of fit_slope_lambda.py (<region>_<LINE>_pro
 and draws, for each region, the 1-sigma regions of every line in physical units:
   x: Delta r_shell [pc] = Delta x r_HII (adopted radius, manuscript_notes/adopted_hii_region_radii.csv)
   y: v_bulk [km/s]      = lambda x v_turb(Delta, lambda)   (v_turb profiled from S2 at each grid point)
-Star = best fit; dotted = v_bulk = v_turb (soft prior below it); dashed vertical = r_HII.
+Star = best fit; dashed vertical = r_HII.
 
 Run from the repo root (after fit_slope_lambda.py):
     python manuscript_pipeline/08_shell_inference/plot_slope_lambda_selected_physical.py [--regions Rosette_nebula RCW79 Sh2-311]
@@ -33,7 +33,6 @@ from vsf_module import LINE_COLORS, LINE_LABELS  # noqa: E402
 
 RUN = OUT_BASE / "slope_lambda"
 REGIONS = ("Rosette_nebula", "RCW79", "Sh2-311")
-LAM_MIN = 1.0  # v_bulk = v_turb line (soft prior below, fit_slope_lambda.py)
 
 
 def main():
@@ -63,8 +62,6 @@ def main():
             ax.contour(xx, yy, m, levels=[2.30], colors=[c], linestyles=[LINESTYLES[X]], linewidths=[1.8])
             jD, jL = np.unravel_index(np.argmin(m), m.shape)
             ax.plot(D[jD] * r_hii, L[jL] * v[jD, jL], "*", ms=14, color=c, mec="white", mew=0.7)
-            ifl = int(np.flatnonzero(L >= LAM_MIN)[0])
-            ax.plot(D * r_hii, L[ifl] * v[:, ifl], color=c, lw=0.8, ls=(0, (1, 2)), alpha=0.8)
             ax.plot([], [], color=c, ls=LINESTYLES[X], lw=1.8, label=LINE_LABELS[X])
         ax.axvline(r_hii, color="0.3", ls="--", lw=1.2)
         ax.set(xscale="log", yscale="log", xlabel=r"$\Delta r_{\rm shell}$ [pc]")
@@ -78,8 +75,7 @@ def main():
     axes[0, 0].legend(fontsize=11, loc="upper left")
     if len(args.regions) > 1:
         h1, = axes[0, 1].plot([], [], color="0.3", ls="--", lw=1.2)
-        h2, = axes[0, 1].plot([], [], color="0.3", ls=(0, (1, 2)), lw=0.8)
-        axes[0, 1].legend([h1, h2], [r"$r_{\rm HII}$", r"$v_{\rm bulk}=v_{\rm turb}$"], fontsize=10, loc="lower right")
+        axes[0, 1].legend([h1], [r"$r_{\rm HII}$"], fontsize=10, loc="lower right")
     axes[0, 0].set_ylabel(r"$v_{\rm bulk}$ (km/s)")
     fig.tight_layout()
     out = RUN / "slope_lambda_maps_physical_selected.png"
